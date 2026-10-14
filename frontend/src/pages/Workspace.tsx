@@ -9,6 +9,7 @@ import { SourcesPane } from '../components/SourcesPane'
 import { StudioPane } from '../components/StudioPane'
 import type { StudioTarget } from '../components/studio'
 import { SourceViewer, type ViewTarget } from '../components/SourceViewer'
+import { useEscape } from '../hooks/useEscape'
 import { useArtifacts } from '../hooks/useArtifacts'
 import { useNotes } from '../hooks/useNotes'
 import { useSources } from '../hooks/useSources'
@@ -44,6 +45,7 @@ export function Workspace({ notebookId, viewing, onView, studio, onStudio }: Wor
     setExpanded(false)
     onStudio(null)
   }
+  useEscape(closeStudio, studio !== null)
   const detail = studio ? (
     studio.type === 'artifact' ? (
       <ArtifactView

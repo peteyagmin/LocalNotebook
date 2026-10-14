@@ -20,6 +20,8 @@ export const baseSettings: Settings = {
   allow_model_downloads: true,
   transcribe_uncaptioned_videos: false,
   searxng_url: '',
+  theme: 'system',
+  font_size: 16,
 }
 
 type Handler = (body: unknown, url: string) => unknown

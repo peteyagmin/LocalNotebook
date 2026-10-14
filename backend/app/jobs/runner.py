@@ -10,6 +10,7 @@ from app.core import db
 from app.core.ids import new_id, now_iso
 from app.core.notebooks import NotebookStore, NotFound
 from app.ingest.pipeline import run_ingest
+from app.ingest.reindex import rebuild_index
 from app.ingest.service import settle_failure
 from app.ingest.services import Services
 from app.llm.base import LLMClient, LLMError
@@ -162,6 +163,22 @@ class JobRunner:
         self._queue.put_nowait((notebook_id, job_id, "index_note", note_id))
         return job_id
 
+    def submit_reindex(self, notebook_id: str) -> str:
+        """Queue a rebuild of the notebook's search index (FR-8.5); one at a time per notebook."""
+        conn = self.store.open(notebook_id)
+        try:
+            with conn:
+                running = conn.execute(
+                    "SELECT id FROM jobs WHERE kind = 'reindex' AND state IN ('queued','running')"
+                ).fetchone()
+                if running:
+                    return running["id"]
+                job_id = self._insert_job(conn, "reindex", notebook_id)
+        finally:
+            conn.close()
+        self._queue.put_nowait((notebook_id, job_id, "reindex", notebook_id))
+        return job_id
+
     def cancel_artifact(self, artifact_id: str) -> None:
         event = self._artifact_cancel.get(artifact_id)
         if event is not None:
@@ -241,6 +258,14 @@ class JobRunner:
                 finally:
                     self._artifact_cancel.pop(target_id, None)
                     self._artifact_cancelled_early.discard(target_id)
+            elif kind == "reindex":
+                error = await rebuild_index(
+                    self.store,
+                    notebook_id,
+                    llm,
+                    settings["embedding_model"],
+                    is_cancelled=lambda: notebook_id in self._cancelled_notebooks,
+                )
             elif kind == "index_note":
                 try:
                     if settings["embedding_model"]:

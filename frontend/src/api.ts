@@ -19,6 +19,8 @@ export interface Settings {
   allow_model_downloads: boolean
   transcribe_uncaptioned_videos: boolean
   searxng_url: string
+  theme: 'system' | 'light' | 'dark'
+  font_size: number
 }
 
 export interface SetupCheck {
@@ -42,6 +44,9 @@ export interface Notebook {
   updated_at: string
   source_count: number
   size_bytes: number
+  /** FR-8.5: built with another embedding model than the one now selected. */
+  index_stale?: boolean
+  reindexing?: boolean
 }
 
 export type SourceState = 'queued' | 'processing' | 'ready' | 'failed'
@@ -391,6 +396,21 @@ export const api = {
   renameNotebook: (id: string, name: string) => request<Notebook>('PATCH', nb(id), { name }),
   duplicateNotebook: (id: string) => request<Notebook>('POST', `${nb(id)}/duplicate`),
   deleteNotebook: (id: string) => request<void>('DELETE', nb(id)),
+  rebuildIndex: (id: string) => request<Notebook>('POST', `${nb(id)}/rebuild-index`),
+  importNotebook: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return request<Notebook>('POST', '/notebooks/import', form)
+  },
+  exportNotebook: async (id: string) => {
+    const resp = await fetch(`/api/v1${nb(id)}/export`, {
+      headers: { Authorization: `Bearer ${token()}` },
+    })
+    await throwIfError(resp)
+    const disposition = resp.headers.get('Content-Disposition') ?? ''
+    const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'notebook.lnb'
+    return { blob: await resp.blob(), filename }
+  },
 
   listSources: (id: string) => request<Source[]>('GET', `${nb(id)}/sources`),
   streamSources: (id: string, onEvent: (s: Source[]) => void, signal: AbortSignal) =>

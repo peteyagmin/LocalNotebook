@@ -46,3 +46,15 @@ async def test_generate_json_gives_up_after_two_retries():
 def test_guide_topics_capped_at_eight():
     g = SourceGuide(summary="s", topics=[str(i) for i in range(12)])
     assert len(g.topics) == 8
+
+
+def test_appearance_settings_default_to_the_os_and_are_validated(make_client):
+    client = make_client()
+    s = client.get("/api/v1/settings").json()
+    assert s["theme"] == "system" and s["font_size"] == 16
+    assert (
+        client.put("/api/v1/settings", json={"theme": "dark", "font_size": 20}).status_code == 200
+    )
+    assert client.get("/api/v1/settings").json()["theme"] == "dark"
+    assert client.put("/api/v1/settings", json={"theme": "pink"}).status_code == 422
+    assert client.put("/api/v1/settings", json={"font_size": 4}).status_code == 422

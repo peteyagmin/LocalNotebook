@@ -132,7 +132,7 @@ export function AudioOverviewView({
                     }
                     className="block w-full text-left disabled:cursor-default"
                   >
-                    <span className="mr-2 text-xs font-semibold text-neutral-500">
+                    <span className="mr-2 text-xs font-semibold text-neutral-500 dark:text-neutral-400">
                       Host {turn.speaker}
                       {seekable && (
                         <span className="ml-1 font-normal">{formatTimestamp(turn.start ?? 0)}</span>

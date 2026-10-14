@@ -73,8 +73,14 @@ class VectorIndex:
             is not None
         )
 
-    def ensure(self, dim: int) -> None:
-        """Create the table on first use; refuse a different dimension afterwards."""
+    def ensure(self, dim: int, model: str | None = None) -> None:
+        """Create the table on first use; refuse a different dimension afterwards. `model` is
+        remembered (once) as the embedding model the index was built with (FR-8.5)."""
+        if model:
+            self.conn.execute(
+                "INSERT OR IGNORE INTO notebook_meta (key, value) VALUES ('embedding_model', ?)",
+                (model,),
+            )
         existing = self._meta_dim()
         if existing is not None and existing != dim:
             raise ValueError(
@@ -201,3 +207,41 @@ class VectorIndex:
         scores = (matrix @ q) / np.where(norms == 0, 1.0, norms)
         order = np.argsort(-scores)[:limit]
         return [(rows[i]["chunk_id"], float(scores[i])) for i in order]
+
+
+INCOMPLETE = "(incomplete)"  # stored as the model while an index rebuild has not finished
+
+
+def index_model(conn: sqlite3.Connection) -> str | None:
+    """The embedding model this notebook's vectors were made with (None if unknown)."""
+    row = conn.execute("SELECT value FROM notebook_meta WHERE key = 'embedding_model'").fetchone()
+    return row["value"] if row else None
+
+
+def is_stale(conn: sqlite3.Connection, current_model: str) -> bool:
+    """FR-8.5: the vectors were made with another model than the one now selected."""
+    if not current_model:
+        return False
+    built_with = index_model(conn)
+    return built_with is not None and built_with != current_model
+
+
+def reset_vectors(conn: sqlite3.Connection) -> None:
+    """Drop every vector table so the index can be rebuilt (any dimension). Until
+    `set_index_model` is called the index counts as stale, so a crash cannot leave a half-built
+    index looking current."""
+    try_load(conn)
+    with conn:
+        for native, fallback in _TABLES.values():
+            for table in (native, fallback):
+                if conn.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (table,)).fetchone():
+                    conn.execute(f"DROP TABLE {table}")
+        conn.execute("DELETE FROM notebook_meta WHERE key IN ('embedding_dim', 'vector_metric')")
+        set_index_model(conn, INCOMPLETE)
+
+
+def set_index_model(conn: sqlite3.Connection, model: str) -> None:
+    conn.execute(
+        "INSERT OR REPLACE INTO notebook_meta (key, value) VALUES ('embedding_model', ?)",
+        (model,),
+    )

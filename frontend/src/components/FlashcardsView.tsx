@@ -11,10 +11,15 @@ interface FlashcardsViewProps {
 const buttonClass =
   'rounded border border-neutral-300 px-3 py-1 text-sm hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800'
 
+/** The hidden face of a card must not be reachable by keyboard (React 18 has no `inert` prop). */
+function inertUnless(visible: boolean): Record<string, string> {
+  return visible ? {} : { inert: '' }
+}
+
 export function FlashcardsView(props: FlashcardsViewProps) {
   const [tab, setTab] = useState<'cards' | 'quiz'>('cards')
   const tabClass = (active: boolean) =>
-    `rounded-t px-4 py-1.5 text-sm ${active ? 'border-b-2 border-blue-600 font-semibold' : 'text-neutral-500'}`
+    `rounded-t px-4 py-1.5 text-sm ${active ? 'border-b-2 border-blue-600 font-semibold' : 'text-neutral-500 dark:text-neutral-400'}`
   return (
     <div className="space-y-4">
       <div
@@ -49,7 +54,8 @@ function Cards({ data, citations, onOpenCitation }: FlashcardsViewProps) {
   const [index, setIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
   const cards = data.flashcards
-  if (cards.length === 0) return <p className="text-neutral-500">No flashcards.</p>
+  if (cards.length === 0)
+    return <p className="text-neutral-500 dark:text-neutral-400">No flashcards.</p>
   const card = cards[index]
   const go = (next: number) => {
     setIndex(next)
@@ -82,6 +88,7 @@ function Cards({ data, citations, onOpenCitation }: FlashcardsViewProps) {
           </button>
           <div
             aria-hidden={!flipped}
+            {...inertUnless(flipped)}
             className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-lg border border-blue-300 bg-blue-50 p-6 text-center text-lg [backface-visibility:hidden] [transform:rotateY(180deg)] dark:border-blue-800 dark:bg-blue-950"
           >
             <button
@@ -129,7 +136,8 @@ function Quiz({ data, citations, onOpenCitation }: FlashcardsViewProps) {
   const [index, setIndex] = useState(0)
   const [answers, setAnswers] = useState<number[]>([])
   const [picked, setPicked] = useState<number | null>(null)
-  if (questions.length === 0) return <p className="text-neutral-500">No quiz questions.</p>
+  if (questions.length === 0)
+    return <p className="text-neutral-500 dark:text-neutral-400">No quiz questions.</p>
 
   if (index >= questions.length) {
     const score = answers.filter((a, i) => a === questions[i].correct_index).length
@@ -157,7 +165,7 @@ function Quiz({ data, citations, onOpenCitation }: FlashcardsViewProps) {
   const answered = picked !== null
   return (
     <div className="space-y-3">
-      <p className="text-xs text-neutral-500">
+      <p className="text-xs text-neutral-500 dark:text-neutral-400">
         Question {index + 1} of {questions.length}
       </p>
       <h3 className="text-lg font-semibold">{q.question}</h3>

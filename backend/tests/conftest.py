@@ -25,8 +25,9 @@ def make_client(tmp_path):
         **app_kwargs,
     ):
         fake = fake or FakeLLMClient(default_reply=GUIDE_JSON)
+        root = app_kwargs.pop("root", tmp_path)  # another data folder = another machine
         config = RuntimeConfig(
-            data_root=tmp_path,
+            data_root=root,
             host="127.0.0.1",
             port=8000,
             llm_base_url_override=llm_override,

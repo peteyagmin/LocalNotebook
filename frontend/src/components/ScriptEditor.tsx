@@ -97,7 +97,7 @@ export function ScriptEditor({
                   <option value="A">Host A</option>
                   <option value="B">Host B</option>
                 </select>
-                <span className="text-xs text-neutral-500">Turn {i + 1}</span>
+                <span className="text-xs text-neutral-500 dark:text-neutral-400">Turn {i + 1}</span>
                 <span className="ml-auto flex gap-1">
                   <button
                     type="button"
@@ -145,7 +145,9 @@ export function ScriptEditor({
         })}
       </ol>
       {rows.length === 0 && (
-        <p className="text-neutral-500">The script is empty. Cancel to keep the old one.</p>
+        <p className="text-neutral-500 dark:text-neutral-400">
+          The script is empty. Cancel to keep the old one.
+        </p>
       )}
       {error && (
         <p role="alert" className="text-red-600">

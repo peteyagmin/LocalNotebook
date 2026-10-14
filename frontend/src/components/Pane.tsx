@@ -41,7 +41,7 @@ export function Pane({
             onClick={onToggle}
             aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${title} pane`}
             aria-expanded={!collapsed}
-            className="rounded px-1.5 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            className="rounded px-1.5 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
             {arrow}
           </button>

@@ -92,6 +92,7 @@ def write_index(
     chunks: list[Chunk],
     vectors: list[list[float]],
     source_fields: dict | None = None,
+    model: str | None = None,
 ) -> list[str]:
     """Replace a source's chunks, FTS rows and vectors in one transaction (DR-6). With
     `source_fields`, the source row is updated in that same transaction, so a source is never
@@ -127,7 +128,7 @@ def write_index(
                 (cid, source_id, ch.text),
             )
         if vectors:
-            index.ensure(len(vectors[0]))
+            index.ensure(len(vectors[0]), model)
             index.add(ids, vectors)
         if source_fields:
             fields = {**source_fields, "updated_at": now_iso()}
@@ -166,7 +167,7 @@ async def reindex_source(
     def _write() -> None:
         conn = store.open(notebook_id)
         try:
-            write_index(conn, source_id, chunks, vectors)
+            write_index(conn, source_id, chunks, vectors, model=embedding_model)
         finally:
             conn.close()
 
@@ -399,7 +400,7 @@ async def run_ingest(
         def _commit() -> None:
             conn = store.open(notebook_id)
             try:
-                write_index(conn, source_id, chunks, vectors, fields)
+                write_index(conn, source_id, chunks, vectors, fields, settings["embedding_model"])
             finally:
                 conn.close()
 

@@ -127,7 +127,9 @@ export function StudioPane({
         aria-label="Audio overview"
         className="space-y-2 rounded border border-neutral-200 p-2 dark:border-neutral-800"
       >
-        <h3 className="text-xs font-semibold uppercase text-neutral-500">Audio overview</h3>
+        <h3 className="text-xs font-semibold uppercase text-neutral-500 dark:text-neutral-400">
+          Audio overview
+        </h3>
         <AudioOptionsFields value={audioOptions} onChange={setAudioOptions} />
         <button
           type="button"
@@ -168,8 +170,12 @@ export function StudioPane({
       {message && <p role="status">{message}</p>}
 
       <section aria-label="Artifacts" className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase text-neutral-500">Generated</h3>
-        {artifacts?.length === 0 && <p className="text-neutral-500">Nothing generated yet.</p>}
+        <h3 className="text-xs font-semibold uppercase text-neutral-500 dark:text-neutral-400">
+          Generated
+        </h3>
+        {artifacts?.length === 0 && (
+          <p className="text-neutral-500 dark:text-neutral-400">Nothing generated yet.</p>
+        )}
         <ul className="space-y-2">
           {artifacts?.map((a) => (
             <li
@@ -187,7 +193,7 @@ export function StudioPane({
                 <button
                   type="button"
                   aria-label={`Delete ${a.title}`}
-                  className="rounded px-1 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  className="rounded px-1 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                   onClick={() => {
                     if (window.confirm(`Delete "${a.title}"?`))
                       void run(async () => {
@@ -207,7 +213,7 @@ export function StudioPane({
                     max={1}
                     className="w-full"
                   />
-                  <div className="flex items-center justify-between text-xs text-neutral-500">
+                  <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
                     <span>{a.state === 'queued' ? 'Waiting…' : (a.stage ?? 'Working…')}</span>
                     <button
                       type="button"
@@ -264,7 +270,9 @@ export function StudioPane({
 
       <section aria-label="Notes" className="space-y-2">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold uppercase text-neutral-500">Notes</h3>
+          <h3 className="text-xs font-semibold uppercase text-neutral-500 dark:text-neutral-400">
+            Notes
+          </h3>
           <button
             type="button"
             className={buttonClass}
@@ -279,7 +287,9 @@ export function StudioPane({
             New note
           </button>
         </div>
-        {notes?.length === 0 && <p className="text-neutral-500">No notes yet.</p>}
+        {notes?.length === 0 && (
+          <p className="text-neutral-500 dark:text-neutral-400">No notes yet.</p>
+        )}
         {ids.length > 0 && (
           <div
             className="flex flex-wrap gap-2"
@@ -338,12 +348,16 @@ export function StudioPane({
                 >
                   {n.title}
                 </button>
-                {n.preview && <p className="truncate text-xs text-neutral-500">{n.preview}</p>}
+                {n.preview && (
+                  <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">
+                    {n.preview}
+                  </p>
+                )}
               </div>
               <button
                 type="button"
                 aria-label={`Delete note ${n.title}`}
-                className="rounded px-1 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                className="rounded px-1 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                 onClick={() => {
                   if (window.confirm(`Delete the note "${n.title}"?`))
                     void run(async () => {

@@ -1,3 +1,5 @@
+import { saveBlob } from '../format'
+import { useEscape } from '../hooks/useEscape'
 import { useEffect, useState } from 'react'
 import {
   api,
@@ -73,6 +75,7 @@ export function ArtifactView({
   const [focus, setFocus] = useState('')
   const [options, setOptions] = useState<AudioOptions>({ length: 'default', format: 'deep_dive' })
   const [exportOpen, setExportOpen] = useState(false)
+  useEscape(() => setExportOpen(false), exportOpen)
   const [reload, setReload] = useState(0)
 
   useEffect(() => {
@@ -105,12 +108,7 @@ export function ArtifactView({
     setExportOpen(false)
     await run(async () => {
       const { blob, filename } = await api.exportArtifact(notebookId, artifactId, format)
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = filename
-      link.click()
-      URL.revokeObjectURL(url)
+      saveBlob(blob, filename)
     })
   }
 
@@ -218,7 +216,9 @@ export function ArtifactView({
               max={1}
               className="w-full"
             />
-            <p className="text-xs text-neutral-500">{artifact.stage ?? 'Waiting…'}</p>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400">
+              {artifact.stage ?? 'Waiting…'}
+            </p>
           </div>
         )}
         {artifact.has_content && artifact.format === 'markdown' && (
@@ -259,7 +259,7 @@ export function ArtifactView({
           </div>
         )}
         {!artifact.has_content && !working && !artifact.error && (
-          <p className="text-neutral-500">Nothing generated yet.</p>
+          <p className="text-neutral-500 dark:text-neutral-400">Nothing generated yet.</p>
         )}
       </div>
 

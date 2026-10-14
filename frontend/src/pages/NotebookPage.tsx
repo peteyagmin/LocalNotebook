@@ -19,6 +19,22 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
   }, [notebookId])
 
+  // While the index is being rebuilt, keep checking until it is done (FR-8.5).
+  const reindexing = notebook?.reindexing ?? false
+  useEffect(() => {
+    if (!reindexing) return
+    const timer = setInterval(() => void api.getNotebook(notebookId).then(setNotebook), 1500)
+    return () => clearInterval(timer)
+  }, [reindexing, notebookId])
+
+  async function rebuild() {
+    try {
+      setNotebook(await api.rebuildIndex(notebookId))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   // Ctrl/Cmd+K focuses search (spec 5.2).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -40,7 +56,7 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
   if (!notebook) return <p className="p-6">Loading…</p>
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <main className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-3 border-b border-neutral-200 px-4 py-1.5 text-sm dark:border-neutral-800">
         <a href="#/" className="rounded px-2 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
           ← Notebooks
@@ -60,6 +76,30 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
           }
         />
       </div>
+      {(notebook.index_stale || notebook.reindexing) && (
+        <div
+          role="status"
+          className="flex items-center gap-3 bg-amber-100 px-4 py-1.5 text-sm text-amber-950"
+        >
+          {notebook.reindexing ? (
+            <span>Rebuilding the search index…</span>
+          ) : (
+            <>
+              <span>
+                The embedding model changed. Rebuild the search index so searching and answers use
+                it.
+              </span>
+              <button
+                type="button"
+                onClick={() => void rebuild()}
+                className="rounded border border-amber-900 px-2 py-0.5 hover:bg-amber-200"
+              >
+                Rebuild index
+              </button>
+            </>
+          )}
+        </div>
+      )}
       <Workspace
         notebookId={notebookId}
         viewing={viewing}
@@ -67,6 +107,6 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
         studio={studio}
         onStudio={setStudio}
       />
-    </div>
+    </main>
   )
 }

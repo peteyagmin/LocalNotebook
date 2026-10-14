@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { useEscape } from '../hooks/useEscape'
 import { api, type Source } from '../api'
 import { useCapabilities } from '../hooks/useCapabilities'
 import { formatDate } from '../format'
@@ -43,6 +44,8 @@ export function SourcesPane({
   const [error, setError] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [dialog, setDialog] = useState<Dialog>(null)
+  useEscape(() => setMenuOpen(false), menuOpen)
+  useEscape(() => setDialog(null), dialog !== null)
   const fileInput = useRef<HTMLInputElement>(null)
   const { capabilities, refresh: refreshCapabilities } = useCapabilities()
 
@@ -110,7 +113,7 @@ export function SourcesPane({
             >
               Upload files
               {uploadHints.map((h) => (
-                <span key={h} className="block text-xs text-neutral-500">
+                <span key={h} className="block text-xs text-neutral-500 dark:text-neutral-400">
                   {h}
                 </span>
               ))}
@@ -132,7 +135,7 @@ export function SourcesPane({
             >
               Website
               {webOff && (
-                <span className="block text-xs text-neutral-500">
+                <span className="block text-xs text-neutral-500 dark:text-neutral-400">
                   Turned off in Settings (Network).
                 </span>
               )}
@@ -146,7 +149,7 @@ export function SourcesPane({
             >
               YouTube
               {webOff && (
-                <span className="block text-xs text-neutral-500">
+                <span className="block text-xs text-neutral-500 dark:text-neutral-400">
                   Turned off in Settings (Network).
                 </span>
               )}
@@ -160,12 +163,14 @@ export function SourcesPane({
             >
               Discover
               {discoverOff && (
-                <span className="block text-xs text-neutral-500">
+                <span className="block text-xs text-neutral-500 dark:text-neutral-400">
                   Turned off in Settings (Network).
                 </span>
               )}
               {capabilities?.discover.allowed && !capabilities.discover.configured && (
-                <span className="block text-xs text-neutral-500">Needs a search provider.</span>
+                <span className="block text-xs text-neutral-500 dark:text-neutral-400">
+                  Needs a search provider.
+                </span>
               )}
             </button>
           </div>
@@ -202,7 +207,7 @@ export function SourcesPane({
 
       {sources && sources.length > 0 && (
         <div className="flex items-center gap-2">
-          <span className="text-xs text-neutral-500">Use:</span>
+          <span className="text-xs text-neutral-500 dark:text-neutral-400">Use:</span>
           <button
             type="button"
             className={buttonClass}
@@ -224,9 +229,11 @@ export function SourcesPane({
         </div>
       )}
 
-      {sources === null && <p className="text-neutral-500">Loading…</p>}
+      {sources === null && <p className="text-neutral-500 dark:text-neutral-400">Loading…</p>}
       {sources?.length === 0 && (
-        <p className="text-neutral-500">No sources yet. Add one to get started.</p>
+        <p className="text-neutral-500 dark:text-neutral-400">
+          No sources yet. Add one to get started.
+        </p>
       )}
 
       <ul className="space-y-2">
@@ -265,7 +272,7 @@ export function SourcesPane({
                 <button
                   type="button"
                   aria-label={`Remove ${s.name}`}
-                  className="rounded px-1 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  className="rounded px-1 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                   onClick={() => {
                     if (window.confirm(`Remove "${s.name}" from this notebook?`))
                       void run(() => api.deleteSource(notebookId, s.id))
@@ -275,7 +282,7 @@ export function SourcesPane({
                 </button>
               </div>
               {s.url && (
-                <div className="mt-1 text-xs text-neutral-500">
+                <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
                   <a
                     href={s.url}
                     target="_blank"
@@ -311,7 +318,7 @@ export function SourcesPane({
                     max={1}
                     className="w-full"
                   />
-                  <div className="text-xs text-neutral-500">
+                  <div className="text-xs text-neutral-500 dark:text-neutral-400">
                     {s.state === 'queued' ? 'Waiting…' : (s.stage ?? 'Processing…')}
                   </div>
                 </div>

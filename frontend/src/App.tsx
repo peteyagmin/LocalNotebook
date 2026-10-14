@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, type Settings } from './api'
+import { useAppearance } from './appearance'
 import { Setup } from './pages/Setup'
 import { SettingsPage } from './pages/SettingsPage'
 import { Home } from './pages/Home'
@@ -31,6 +32,7 @@ export function App() {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [error, setError] = useState<string | null>(null)
   const hash = useHash()
+  useAppearance({ theme: settings?.theme ?? 'system', font_size: settings?.font_size ?? 16 })
 
   useEffect(() => {
     api

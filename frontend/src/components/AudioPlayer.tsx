@@ -175,7 +175,7 @@ export function AudioPlayer({
         />
         <span>{formatTimestamp(total)}</span>
       </div>
-      {!url && <p className="text-xs text-neutral-500">Loading the audio…</p>}
+      {!url && <p className="text-xs text-neutral-500 dark:text-neutral-400">Loading the audio…</p>}
     </div>
   )
 }

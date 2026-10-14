@@ -114,7 +114,7 @@ export function NoteEditor({
           onChange={(e) => edit({ title: e.target.value })}
           className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 font-semibold hover:border-neutral-300 dark:hover:border-neutral-700"
         />
-        <span role="status" className="text-xs text-neutral-500">
+        <span role="status" className="text-xs text-neutral-500 dark:text-neutral-400">
           {status === 'saved' ? 'Saved' : status === 'saving' ? 'Saving…' : 'Not saved'}
         </span>
         <button
@@ -137,7 +137,7 @@ export function NoteEditor({
         }`}
       >
         <label className="block">
-          <span className="text-xs text-neutral-500">Markdown</span>
+          <span className="text-xs text-neutral-500 dark:text-neutral-400">Markdown</span>
           <textarea
             aria-label="Note content"
             value={content}
@@ -147,7 +147,7 @@ export function NoteEditor({
           />
         </label>
         <section aria-label="Preview">
-          <span className="text-xs text-neutral-500">Preview</span>
+          <span className="text-xs text-neutral-500 dark:text-neutral-400">Preview</span>
           <div className="mt-1 rounded border border-neutral-200 p-2 dark:border-neutral-800">
             <AnswerText text={content} citations={note.citations} onOpenCitation={onOpenCitation} />
           </div>

@@ -43,6 +43,16 @@ const EDITABLE: EditableKey[] = [
   'allow_model_downloads',
   'transcribe_uncaptioned_videos',
   'searxng_url',
+  'theme',
+  'font_size',
+]
+
+const TEXT_SIZES: [number, string][] = [
+  [14, 'Small'],
+  [16, 'Normal'],
+  [18, 'Large'],
+  [20, 'Larger'],
+  [24, 'Largest'],
 ]
 
 const inputClass =
@@ -74,7 +84,7 @@ export function SettingsPage({ settings, onSettingsChange, onClose, notice }: Se
         value={draft[key]}
         onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
       />
-      {help && <span className="block text-xs text-neutral-500">{help}</span>}
+      {help && <span className="block text-xs text-neutral-500 dark:text-neutral-400">{help}</span>}
     </label>
   )
   const number = (key: NumberKey, label: string) => (
@@ -101,7 +111,7 @@ export function SettingsPage({ settings, onSettingsChange, onClose, notice }: Se
       />
       <span>
         {label}
-        <span className="block text-xs text-neutral-500">{help}</span>
+        <span className="block text-xs text-neutral-500 dark:text-neutral-400">{help}</span>
       </span>
     </label>
   )
@@ -138,6 +148,35 @@ export function SettingsPage({ settings, onSettingsChange, onClose, notice }: Se
           {notice}
         </p>
       )}
+
+      <Section title="Appearance">
+        <label className="block text-sm">
+          Theme
+          <select
+            className={inputClass}
+            value={draft.theme}
+            onChange={(e) => setDraft({ ...draft, theme: e.target.value as Settings['theme'] })}
+          >
+            <option value="system">Same as the computer</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </label>
+        <label className="block text-sm">
+          Text size
+          <select
+            className={inputClass}
+            value={draft.font_size}
+            onChange={(e) => setDraft({ ...draft, font_size: Number(e.target.value) })}
+          >
+            {TEXT_SIZES.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </Section>
 
       <Section title="Model server">
         {text('llm_base_url', 'Model server URL')}
@@ -182,7 +221,7 @@ export function SettingsPage({ settings, onSettingsChange, onClose, notice }: Se
       </Section>
 
       <Section title="Network">
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-neutral-500 dark:text-neutral-400">
           The app contacts the internet only for the actions you start, and only if allowed here.
         </p>
         {check(
@@ -231,7 +270,7 @@ export function SettingsPage({ settings, onSettingsChange, onClose, notice }: Se
               ))}
             </ul>
           )}
-          <p className="mt-2 text-neutral-500">
+          <p className="mt-2 text-neutral-500 dark:text-neutral-400">
             To install a missing model, run: <code>ollama pull &lt;model name&gt;</code>
           </p>
         </div>
@@ -292,7 +331,7 @@ function ModelDownload({ kind, saved }: { kind: 'stt' | 'tts'; saved: string }) 
       role="group"
     >
       {!status.configured && (
-        <p className="text-neutral-500">
+        <p className="text-neutral-500 dark:text-neutral-400">
           {kind === 'stt'
             ? 'Enter a model name and save to use audio and video transcription.'
             : 'Enter a model and both voices, then save, to make audio overviews.'}
@@ -317,17 +356,21 @@ function ModelDownload({ kind, saved }: { kind: 'stt' | 'tts'; saved: string }) 
             {kind === 'stt' ? 'Download model' : 'Download model and voices'}
           </button>
           {!status.downloads_allowed && (
-            <p className="text-xs text-neutral-500">Model downloads are turned off (Network).</p>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400">
+              Model downloads are turned off (Network).
+            </p>
           )}
         </div>
       )}
       {tts && !tts.espeak && (
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-neutral-500 dark:text-neutral-400">
           espeak-ng is not installed. It turns text into sounds; install it and add it to PATH.
         </p>
       )}
       {tts && !tts.ffmpeg && (
-        <p className="text-xs text-neutral-500">ffmpeg is not installed. It makes the MP3.</p>
+        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+          ffmpeg is not installed. It makes the MP3.
+        </p>
       )}
       {status.state === 'downloading' && (
         <div>
@@ -337,7 +380,7 @@ function ModelDownload({ kind, saved }: { kind: 'stt' | 'tts'; saved: string }) 
             max={1}
             className="w-full"
           />
-          <p className="text-xs text-neutral-500">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">
             Downloading… {status.progress != null ? `${Math.round(status.progress * 100)}%` : ''}
           </p>
         </div>

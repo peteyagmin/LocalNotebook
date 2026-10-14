@@ -11,7 +11,7 @@ export function TimelineView({ data, citations, onOpenCitation }: TimelineViewPr
   return (
     <div className="space-y-6">
       {data.events.length === 0 ? (
-        <p className="text-neutral-500">No dated events found</p>
+        <p className="text-neutral-500 dark:text-neutral-400">No dated events found</p>
       ) : (
         <ol
           aria-label="Timeline events"

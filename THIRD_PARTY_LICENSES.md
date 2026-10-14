@@ -27,6 +27,9 @@ Only MIT, BSD, Apache-2.0, ISC, MPL-2.0, Unlicense, and PSF licenses are allowed
 | yt-dlp | 2026.8.19 | Unlicense | M5 |
 | faster-whisper | 1.2.1 | MIT | M5 |
 | pytesseract | 0.3.13 | Apache-2.0 | M5 |
+| playwright (dev) | 1.64.0 | Apache-2.0 (bundles its Node driver, also Apache-2.0) | M7 |
+| greenlet (dev, required by playwright) | 3.5.6 | MIT AND PSF-2.0 | M7 |
+| pyee (dev, required by playwright) | 14.0.0 | MIT | M7 |
 | numpy | 2.5.4 | BSD-3-Clause (wheel also bundles components under 0BSD, MIT, Zlib, CC0-1.0) | M2 |
 
 M6 adds no Python packages: Kokoro ONNX inference uses numpy and onnxruntime (already listed) and
@@ -62,6 +65,7 @@ version that drops the MPL option without re-checking.
 | @testing-library/react | 16.3.3 | MIT |
 | @testing-library/jest-dom | 7.0.1 | MIT |
 | @testing-library/user-event | 14.6.8 | MIT |
+| axe-core (dev) | 4.14.0 | MPL-2.0 (on the §0 list; used unmodified for the accessibility test) |
 | eslint, @eslint/js | 10.12.0 / 10.0.1 | MIT |
 | typescript-eslint | 8.71.2 | MIT |
 | eslint-plugin-react-hooks | 7.1.1 | MIT |

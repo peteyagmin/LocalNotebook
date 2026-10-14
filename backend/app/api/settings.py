@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from typing import Literal
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, Field
@@ -34,6 +35,8 @@ class SettingsUpdate(BaseModel):
     allow_model_downloads: bool | None = None
     transcribe_uncaptioned_videos: bool | None = None
     searxng_url: str | None = None
+    theme: Literal["system", "light", "dark"] | None = None
+    font_size: int | None = Field(default=None, ge=12, le=24)
 
 
 @router.get("/settings")

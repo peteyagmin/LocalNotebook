@@ -5,7 +5,8 @@ edit it except to tick milestone boxes in §12. Stop after each milestone for ow
 
 ## Current status
 
-M0-M6 accepted. Next: M7 (export/import).
+M0-M6 accepted. M7 (export/import, index rebuild, theming, keyboard, accessibility, smoke test,
+performance check) implemented, awaiting owner sign-off on v1.0.
 
 ## Architecture (as built)
 
@@ -179,6 +180,31 @@ M0-M6 accepted. Next: M7 (export/import).
   Versions: `GET /sources/{id}/versions[/{n}/content]`; the viewer has a Version picker.
 - Frontend: `AudioPlayer` (audio fetched with the token, played from a blob URL), `AudioOverviewView`,
   `ScriptEditor`, `AudioOptionsFields`; tests mock `HTMLMediaElement.play/pause`.
+
+## M7 additions
+
+- `.lnb` (`core/transfer.py`): ZIP with `manifest.json` (format, format_version, notebook id/name/dates,
+  schema_version, embedding_model), `notebook.db` (consistent snapshot via `NotebookStore.snapshot_db`;
+  unfinished sources become failed), `sources/**`, `artifacts/**`. Import validates member names (no
+  absolute/`..`/links/unknown top-level entries), size and compression ratio, runs `quick_check`, refuses
+  a newer schema, migrates older ones, unpacks into `notebooks/.import-*` and renames into place. Same id
+  already present = new id and "(copy)". API: `GET /notebooks/{id}/export`, `POST /notebooks/import`.
+- FR-8.5: `notebook_meta.embedding_model` is recorded once when vectors are first written
+  (`VectorIndex.ensure(dim, model)`). `GET /notebooks[/{id}]` returns `index_stale` and `reindexing`.
+  `POST /notebooks/{id}/rebuild-index` queues job kind `reindex` (`ingest/reindex.py`): drops all vector
+  tables (`reset_vectors`, which marks the index `(incomplete)` until done), re-indexes every ready source
+  from `extracted.json` and every note. A failure leaves it stale. Notebooks with no recorded model
+  (built before M7) are not reported stale.
+- `core/db.connect` uses `check_same_thread=False`: FastAPI may close a request's connection on another
+  worker thread than the one that opened it (found by the real-server smoke test).
+- Settings `theme` (system|light|dark) and `font_size` (px). `src/appearance.ts` sets
+  `html[data-theme]` and the root font size; Tailwind's `dark:` variant keys off `data-theme='dark'`
+  (`index.css`). `hooks/useEscape.ts` keeps a stack so Esc closes only the newest overlay.
+- Accessibility: dark-mode muted text uses `neutral-400` (contrast); the hidden face of a flashcard is
+  `inert`. `backend/tests/e2e/test_accessibility.py` runs axe-core (frontend devDependency) on the main
+  screens in both themes.
+- Tests: `uv run pytest` skips `e2e`; `uv run pytest -m e2e` needs `frontend/dist` built and Chromium
+  (set `PLAYWRIGHT_BROWSERS_PATH`). `evals/perf_check.py` is the §9 check.
 
 ## Conventions
 

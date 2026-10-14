@@ -24,7 +24,7 @@ export function CitationChip({ label, citation, onOpen }: CitationChipProps) {
         }
         className={`rounded-full px-1.5 text-xs leading-5 ${
           removed
-            ? 'bg-neutral-200 text-neutral-500 line-through dark:bg-neutral-800'
+            ? 'bg-neutral-200 text-neutral-500 dark:text-neutral-400 line-through dark:bg-neutral-800'
             : 'bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-100'
         }`}
       >
@@ -37,7 +37,7 @@ export function CitationChip({ label, citation, onOpen }: CitationChipProps) {
         <strong className="block">
           {removed ? 'Source removed' : citation.source_name}
           {!removed && describeLocation(citation.location) && (
-            <span className="ml-2 font-normal text-neutral-500">
+            <span className="ml-2 font-normal text-neutral-500 dark:text-neutral-400">
               {describeLocation(citation.location)}
             </span>
           )}

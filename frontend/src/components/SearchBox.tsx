@@ -69,6 +69,7 @@ export function SearchBox({ notebookId, inputRef, onOpen }: SearchBoxProps) {
         }}
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
+            e.preventDefault() // closing the results comes first; other overlays stay open
             setQuery('')
             setResults(null)
           }
@@ -86,7 +87,9 @@ export function SearchBox({ notebookId, inputRef, onOpen }: SearchBoxProps) {
               {error}
             </p>
           )}
-          {results?.length === 0 && <p className="p-3 text-neutral-500">No matches.</p>}
+          {results?.length === 0 && (
+            <p className="p-3 text-neutral-500 dark:text-neutral-400">No matches.</p>
+          )}
           <ul>
             {results?.map((r) => (
               <li key={r.chunk_id}>
@@ -106,7 +109,7 @@ export function SearchBox({ notebookId, inputRef, onOpen }: SearchBoxProps) {
                     </span>
                   )}
                   {describeLocation(r.location) && (
-                    <span className="ml-2 text-xs text-neutral-500">
+                    <span className="ml-2 text-xs text-neutral-500 dark:text-neutral-400">
                       {describeLocation(r.location)}
                     </span>
                   )}

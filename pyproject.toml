@@ -24,6 +24,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "playwright>=1.64.0",
     "pytest>=8",
     "pytest-asyncio>=0.24",
     "ruff>=0.6",
@@ -36,8 +37,11 @@ package = false
 testpaths = ["backend/tests"]
 pythonpath = ["backend"]
 asyncio_mode = "auto"
-markers = ["llm: requires a real model (skipped by default)"]
-addopts = "-m 'not llm'"
+markers = [
+    "llm: requires a real model (skipped by default)",
+    "e2e: drives the built UI in a real browser (QA-5); run with `uv run pytest -m e2e`",
+]
+addopts = "-m 'not llm and not e2e'"
 
 [tool.ruff]
 line-length = 100

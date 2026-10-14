@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, type Notebook } from '../api'
-import { formatBytes, formatDate } from '../format'
+import { formatBytes, formatDate, saveBlob } from '../format'
 
 const buttonClass =
   'rounded border border-neutral-300 px-2 py-1 text-xs hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800'
@@ -11,6 +11,8 @@ export function Home() {
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
 
   async function reload() {
     setNotebooks(await api.listNotebooks())
@@ -22,6 +24,38 @@ export function Home() {
       .then(setNotebooks)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
   }, [])
+
+  // While an index is being rebuilt, keep checking until it is done.
+  const rebuilding = notebooks?.some((n) => n.reindexing) ?? false
+  useEffect(() => {
+    if (!rebuilding) return
+    const timer = setInterval(() => void api.listNotebooks().then(setNotebooks), 1500)
+    return () => clearInterval(timer)
+  }, [rebuilding])
+
+  async function importFile(file: File | undefined) {
+    if (!file) return
+    setMessage(null)
+    setError(null)
+    try {
+      const imported = await api.importNotebook(file)
+      await reload()
+      setMessage(`Imported “${imported.name}”.`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function exportNotebook(nb: Notebook) {
+    setMessage(null)
+    setError(null)
+    try {
+      const { blob, filename } = await api.exportNotebook(nb.id)
+      saveBlob(blob, filename)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   async function run(action: () => Promise<unknown>) {
     setError(null)
@@ -37,13 +71,29 @@ export function Home() {
     <main className="mx-auto w-full max-w-5xl space-y-4 p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Notebooks</h1>
-        <button
-          type="button"
-          onClick={() => setCreating(true)}
-          className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white"
-        >
-          New notebook
-        </button>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => fileInput.current?.click()} className={buttonClass}>
+            Import notebook
+          </button>
+          <input
+            ref={fileInput}
+            type="file"
+            hidden
+            accept=".lnb"
+            aria-label="Notebook file"
+            onChange={(e) => {
+              void importFile(e.target.files?.[0])
+              e.target.value = ''
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white"
+          >
+            New notebook
+          </button>
+        </div>
       </div>
 
       {creating && (
@@ -82,9 +132,12 @@ export function Home() {
           {error}
         </p>
       )}
+      {message && <p role="status">{message}</p>}
       {notebooks === null && !error && <p>Loading…</p>}
       {notebooks?.length === 0 && (
-        <p className="text-neutral-500">No notebooks yet. Create one to get started.</p>
+        <p className="text-neutral-500 dark:text-neutral-400">
+          No notebooks yet. Create one to get started.
+        </p>
       )}
 
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -121,15 +174,40 @@ export function Home() {
                 {nb.name}
               </a>
             )}
-            <dl className="text-xs text-neutral-500">
+            <div className="text-xs text-neutral-500 dark:text-neutral-400">
               <div>
                 {nb.source_count} {nb.source_count === 1 ? 'source' : 'sources'} ·{' '}
                 {formatBytes(nb.size_bytes)}
               </div>
               <div>Created {formatDate(nb.created_at)}</div>
               <div>Modified {formatDate(nb.updated_at)}</div>
-            </dl>
-            <div className="flex gap-2">
+            </div>
+            {(nb.index_stale || nb.reindexing) && (
+              <div
+                role="status"
+                className="space-y-1 rounded bg-amber-100 p-2 text-xs text-amber-950"
+              >
+                {nb.reindexing ? (
+                  <p>Rebuilding the search index…</p>
+                ) : (
+                  <>
+                    <p>
+                      The embedding model changed, so searching and answers may be less accurate
+                      until the search index is rebuilt.
+                    </p>
+                    <button
+                      type="button"
+                      className={buttonClass}
+                      aria-label={`Rebuild index of ${nb.name}`}
+                      onClick={() => void run(() => api.rebuildIndex(nb.id))}
+                    >
+                      Rebuild index
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 className={buttonClass}
@@ -145,6 +223,14 @@ export function Home() {
                 onClick={() => void run(() => api.duplicateNotebook(nb.id))}
               >
                 Duplicate
+              </button>
+              <button
+                type="button"
+                className={buttonClass}
+                aria-label={`Export ${nb.name}`}
+                onClick={() => void exportNotebook(nb)}
+              >
+                Export
               </button>
               <button
                 type="button"

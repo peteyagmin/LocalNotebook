@@ -2,22 +2,19 @@
 
 Local, source-grounded research notebook. See `PROJECT_SPEC.md` for the full specification.
 
-**Status:** M6 implemented (audio overview). In addition to everything in M5 you can make an
-**audio overview**: a two-host spoken discussion of your sources (length Short ~5 / Default ~10 /
-Long ~20 minutes; format Deep dive, Brief, Debate or Critique; optional focus) with a player (play,
-pause, seek, ±15 s, speed 0.75×–2×), a transcript that follows the audio and jumps to a turn when
-clicked, an editable script (text, speaker, order, delete) and **Re-synthesize audio** that does not
-regenerate the script. It needs a text-to-speech model and two voices in Settings (a Kokoro ONNX
-model from Hugging Face, downloaded on request), `espeak-ng` and ffmpeg on `PATH`. A web source
-whose **Refresh from web** fails keeps its previous capture and shows the error, and the source
-viewer has a **Version** picker for earlier captures.
+**Status:** M7 implemented (export/import and polish): v1.0 candidate. Everything from M0 to M6
+(notebooks, sources of every type, cited chat, notes, generated documents, structured study aids,
+audio overviews) plus:
 
-From M5: you can add **web pages** (several addresses at once; pages are saved and work offline; **Refresh from
-web** keeps the earlier capture), **YouTube videos** (captions; optionally local transcription of
-videos without captions), **HTML and EPUB files**, **images and scanned PDF pages** (read with
-Tesseract OCR), and **audio files** (transcribed locally), and **Discover** sources on a topic through
-your own SearXNG search server. Citations to audio and video show a timestamp, and cited video
-passages have an "Open in browser at this time" link. Export/import (M7) is still to come.
+- **Export and import** (`Export` on a notebook card, `Import notebook` on the home screen). A
+  notebook is one `.lnb` file (a ZIP of its folder and a manifest). Importing never overwrites: if the
+  notebook is already there, it is added as a copy.
+- **Rebuild index.** After you change the embedding model, notebooks show an offer to rebuild their
+  search index, which re-reads every source and note with the new model.
+- **Appearance** (Settings): light, dark, or the same as the computer; text size.
+- **Keyboard:** `Enter` sends, `Shift+Enter` adds a line, `Esc` closes the newest open menu, dialog,
+  or panel, `Ctrl/Cmd+K` focuses search.
+- An accessibility pass (checked automatically with axe-core in light and dark themes).
 
 Ingesting a source calls your model server twice (embeddings, then a short source guide), so a chat
 model and an embedding model must be set in Settings first. Without them a source shows as failed
@@ -51,6 +48,21 @@ chat and embedding models, Tesseract, and ffmpeg.
 uv run pytest
 uv run ruff check
 cd frontend && npm test && npm run lint
+```
+
+End-to-end smoke test (QA-5; a real browser against the built UI and a fake model) and the
+accessibility check:
+
+```
+cd frontend && npm install && npm run build   # once, and after UI changes
+uv run pytest -m e2e
+```
+
+Performance check against spec §9 (measures the app's own cost with a fake model; the real-model
+parts are for you to measure on your hardware):
+
+```
+uv run python evals/perf_check.py
 ```
 
 ## Web, video, audio, and OCR

@@ -20,3 +20,6 @@ allow_discover = true
 allow_model_downloads = true
 transcribe_uncaptioned_videos = false
 searxng_url = ""
+# Appearance (spec 5.2): follow the operating system unless the user picks a theme; base font in px.
+theme = "system"
+font_size = 16

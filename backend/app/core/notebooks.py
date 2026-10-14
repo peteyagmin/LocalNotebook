@@ -142,27 +142,30 @@ class NotebookStore:
         finally:
             conn.close()
 
-    def duplicate(self, notebook_id: str) -> dict:
-        source = self.get(notebook_id)
-        new_nb = new_id()
-        dest = self.folder(new_nb)
-        (dest).mkdir(parents=True)
-        # Consistent snapshot of the database even while it is in use.
+    def snapshot_db(self, notebook_id: str, dest: Path) -> None:
+        """Copy the notebook database consistently, even while it is in use. Work that was in
+        flight cannot continue in the copy, so it is marked failed (Retry) and its jobs dropped."""
         src_conn = db.connect(self.db_path(notebook_id))
-        dst_conn = db.connect(dest / "notebook.db")
+        dst_conn = db.connect(dest)
         try:
             src_conn.backup(dst_conn)
             with dst_conn:
-                # Work that was in flight cannot continue in the copy; offer Retry instead.
                 dst_conn.execute(
                     "UPDATE sources SET state='failed', stage=NULL, "
-                    "error='Interrupted: the notebook was duplicated during processing.' "
+                    "error='Interrupted: the notebook was copied during processing.' "
                     "WHERE state IN ('queued','processing')"
                 )
                 dst_conn.execute("DELETE FROM jobs WHERE state IN ('queued','running')")
         finally:
             src_conn.close()
             dst_conn.close()
+
+    def duplicate(self, notebook_id: str) -> dict:
+        source = self.get(notebook_id)
+        new_nb = new_id()
+        dest = self.folder(new_nb)
+        (dest).mkdir(parents=True)
+        self.snapshot_db(notebook_id, dest / "notebook.db")
         src_sources = self.folder(notebook_id) / "sources"
         if src_sources.exists():
             shutil.copytree(src_sources, dest / "sources")

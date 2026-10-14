@@ -250,3 +250,174 @@ describe('notebook workspace', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 })
+
+describe('export, import and index rebuild (FR-1.3, FR-8.5)', () => {
+  it('exports a notebook as a file', async () => {
+    const saved: string[] = []
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL: vi.fn(() => 'blob:x'),
+      revokeObjectURL: vi.fn(),
+    })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      saved.push(this.download)
+    })
+    mockBackend({
+      'GET /settings': baseSettings,
+      'GET /notebooks': [notebook()],
+      'GET /notebooks/n1/export': () =>
+        new Response('zip', {
+          headers: { 'Content-Disposition': 'attachment; filename="My-notebook.lnb"' },
+        }),
+    })
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Export My notebook' }))
+    await waitFor(() => expect(saved).toEqual(['My-notebook.lnb']))
+  })
+
+  it('imports a .lnb file and shows the new notebook', async () => {
+    let list = [notebook()]
+    const calls = mockBackend({
+      'GET /settings': baseSettings,
+      'GET /notebooks': () => list,
+      'POST /notebooks/import': () => {
+        list = [...list, notebook({ id: 'n2', name: 'My notebook (copy)' })]
+        return list[1]
+      },
+    })
+    render(<App />)
+    await screen.findByText('My notebook')
+    const file = new File(['zip'], 'x.lnb', { type: 'application/zip' })
+    await userEvent.upload(screen.getByLabelText('Notebook file'), file)
+    expect(await screen.findByText('My notebook (copy)')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Imported “My notebook (copy)”.')
+    expect(calls.some((c) => c.method === 'POST' && c.path === '/notebooks/import')).toBe(true)
+  })
+
+  it('shows a refused import file as an error', async () => {
+    mockBackend({
+      'GET /settings': baseSettings,
+      'GET /notebooks': [],
+      'POST /notebooks/import': () =>
+        new Response(
+          JSON.stringify({
+            error: { code: 'invalid_notebook_file', message: 'This is not a notebook file.' },
+          }),
+          { status: 422 },
+        ),
+    })
+    render(<App />)
+    await userEvent.upload(await screen.findByLabelText('Notebook file'), new File(['x'], 'x.lnb'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('This is not a notebook file.')
+  })
+
+  it('offers Rebuild index when the embedding model changed, then shows progress', async () => {
+    let state = { index_stale: true, reindexing: false }
+    const calls = mockBackend({
+      'GET /settings': baseSettings,
+      'GET /notebooks': () => [notebook(state)],
+      'POST /notebooks/n1/rebuild-index': () => {
+        state = { index_stale: true, reindexing: true }
+        return notebook(state)
+      },
+    })
+    render(<App />)
+    const rebuild = await screen.findByRole('button', { name: 'Rebuild index of My notebook' })
+    await userEvent.click(rebuild)
+    expect(await screen.findByText('Rebuilding the search index…')).toBeInTheDocument()
+    expect(calls.some((c) => c.path === '/notebooks/n1/rebuild-index')).toBe(true)
+  })
+
+  it('shows the same offer inside the notebook', async () => {
+    window.location.hash = '#/notebooks/n1'
+    mockBackend({
+      'GET /settings': baseSettings,
+      'GET /notebooks/n1': notebook({ index_stale: true, reindexing: false }),
+      'GET /notebooks/n1/sources': [],
+      'GET /notebooks/n1/chat': [],
+      'GET /notebooks/n1/chat/starters': { questions: [] },
+      'GET /notebooks/n1/notes': [],
+      'GET /notebooks/n1/artifacts': [],
+      'GET /capabilities': {
+        ocr: true,
+        audio_overview: { ready: true, problems: [] },
+        stt: { configured: true, installed: true },
+        web_import: true,
+        discover: { allowed: true, configured: true },
+      },
+      'POST /notebooks/n1/rebuild-index': notebook({ index_stale: true, reindexing: true }),
+    })
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Rebuild index' }))
+    expect(await screen.findByText('Rebuilding the search index…')).toBeInTheDocument()
+  })
+})
+
+describe('appearance (spec 5.2)', () => {
+  const root = document.documentElement
+
+  it('follows the operating system by default and lets the user choose', async () => {
+    vi.stubGlobal('matchMedia', (q: string) => ({
+      matches: q.includes('dark'),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }))
+    const calls = mockBackend({
+      'GET /settings': baseSettings,
+      'GET /notebooks': [],
+      'PUT /settings': (body: unknown) => ({ ...baseSettings, ...(body as object) }),
+    })
+    window.location.hash = '#/settings'
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Settings' })
+    expect(root.dataset.theme).toBe('dark') // the OS prefers dark
+    expect(root.style.fontSize).toBe('16px')
+
+    await userEvent.selectOptions(screen.getByLabelText('Theme'), 'light')
+    await userEvent.selectOptions(screen.getByLabelText('Text size'), '20')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(root.dataset.theme).toBe('light'))
+    expect(root.style.fontSize).toBe('20px')
+    const put = calls.find((c) => c.method === 'PUT' && c.path === '/settings')
+    expect(put?.body).toMatchObject({ theme: 'light', font_size: 20 })
+  })
+})
+
+describe('keyboard (spec 5.2)', () => {
+  it('Esc closes only the newest overlay', async () => {
+    window.location.hash = '#/notebooks/n1'
+    mockBackend({
+      'GET /settings': baseSettings,
+      'GET /notebooks/n1': notebook(),
+      'GET /notebooks/n1/sources': [source()],
+      'GET /notebooks/n1/sources/s1/content': {
+        text: 'Some text.',
+        segments: [{ start: 0, end: 10, page: null, heading_path: null }],
+        page_count: null,
+      },
+      'GET /notebooks/n1/chat': [],
+      'GET /notebooks/n1/chat/starters': { questions: [] },
+      'GET /notebooks/n1/notes': [],
+      'GET /notebooks/n1/artifacts': [],
+      'GET /capabilities': {
+        ocr: true,
+        audio_overview: { ready: true, problems: [] },
+        stt: { configured: true, installed: true },
+        web_import: true,
+        discover: { allowed: true, configured: true },
+      },
+    })
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Doc.pdf' }))
+    await screen.findByRole('dialog', { name: 'Source: Doc.pdf' })
+    await userEvent.click(screen.getByRole('button', { name: 'Add source' }))
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Source: Doc.pdf' })).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Source: Doc.pdf' })).not.toBeInTheDocument()
+  })
+})

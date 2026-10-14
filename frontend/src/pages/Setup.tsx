@@ -97,7 +97,7 @@ export function Setup({ settings, onSettingsChange, onDone }: SetupProps) {
               <span aria-hidden="true">{c.ok ? '✓' : '✗'}</span>{' '}
               <span className="font-medium">{c.label}</span>
               <span className="sr-only">{c.ok ? ' (passed)' : ' (failed)'}</span>
-              <div className="ml-5 text-neutral-500">{c.detail}</div>
+              <div className="ml-5 text-neutral-500 dark:text-neutral-400">{c.detail}</div>
               {c.fix && <div className="ml-5">{c.fix}</div>}
             </li>
           ))}

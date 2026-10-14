@@ -1,7 +1,15 @@
 @import 'tailwindcss';
 
+/* Dark styles apply when the page is marked dark (see appearance.ts): the OS setting by default,
+   or the user's choice in Settings. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
 }
 
 body {

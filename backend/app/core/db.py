@@ -9,7 +9,9 @@ from pathlib import Path
 
 def connect(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
+    # A request's connection can be opened and closed on different worker threads (FastAPI runs
+    # dependency setup and teardown separately); it is never used by two threads at once.
+    conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")

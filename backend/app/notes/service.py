@@ -238,7 +238,7 @@ async def embed_note(
                     (cid, v) for (cid, _), v in zip(chunks, vectors, strict=True) if cid in still
                 ]
                 if pairs:
-                    index.ensure(len(pairs[0][1]))
+                    index.ensure(len(pairs[0][1]), model)
                     index.delete([cid for cid, _ in pairs])
                     index.add([cid for cid, _ in pairs], [v for _, v in pairs])
         finally:

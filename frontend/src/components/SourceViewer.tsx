@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, type Source, type SourceContent, type SourceVersion } from '../api'
+import { useEscape } from '../hooks/useEscape'
 import { formatDate, formatTimestamp } from '../format'
 
 export interface Highlight {
@@ -59,11 +60,7 @@ export function SourceViewer({ notebookId, source, highlight, onClose }: SourceV
     }
   }, [notebookId, source.id, version, key])
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  useEscape(onClose)
 
   useEffect(() => {
     if (content && highlight) markRef.current?.scrollIntoView?.({ block: 'center' })
@@ -150,7 +147,7 @@ export function SourceViewer({ notebookId, source, highlight, onClose }: SourceV
           </div>
         )}
         {source.url && (
-          <p className="mb-3 text-xs text-neutral-500">
+          <p className="mb-3 text-xs text-neutral-500 dark:text-neutral-400">
             <a href={source.url} target="_blank" rel="noreferrer noopener" className="underline">
               {source.url}
             </a>
@@ -199,12 +196,12 @@ export function SourceViewer({ notebookId, source, highlight, onClose }: SourceV
                     {formatTimestamp(seg.start_s)}
                   </a>
                 ) : (
-                  <div className="mb-1 text-xs text-neutral-500">
+                  <div className="mb-1 text-xs text-neutral-500 dark:text-neutral-400">
                     {formatTimestamp(seg.start_s)}
                   </div>
                 ))}
               {marker !== null && (
-                <div className="my-3 border-t border-neutral-300 pt-1 text-xs text-neutral-500 dark:border-neutral-700">
+                <div className="my-3 border-t border-neutral-300 pt-1 text-xs text-neutral-500 dark:text-neutral-400 dark:border-neutral-700">
                   Page {marker}
                 </div>
               )}

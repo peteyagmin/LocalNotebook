@@ -91,7 +91,9 @@ function ChatBody({
     <div className="space-y-3" aria-live="polite">
       {chat.messages && messages.length === 0 && !chat.busy && (
         <div className="space-y-2">
-          <p className="text-neutral-500">Ask a question about your sources.</p>
+          <p className="text-neutral-500 dark:text-neutral-400">
+            Ask a question about your sources.
+          </p>
           {chat.starters.map((q) => (
             <button
               key={q}
@@ -113,7 +115,9 @@ function ChatBody({
         ) : (
           <div key={m.id} className="mr-4 space-y-1">
             <AnswerText text={m.content} citations={m.citations} onOpenCitation={onOpenCitation} />
-            {m.status === 'stopped' && <p className="text-xs text-neutral-500">Stopped</p>}
+            {m.status === 'stopped' && (
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">Stopped</p>
+            )}
             <button
               type="button"
               className={buttonClass}
@@ -132,7 +136,9 @@ function ChatBody({
               {savedIds.has(m.id) ? 'Saved to notes' : 'Save to note'}
             </button>
             {m.status === 'error' && (
-              <p className="text-xs text-neutral-500">Incomplete: the model stopped responding</p>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                Incomplete: the model stopped responding
+              </p>
             )}
             {m === lastAssistant && !chat.busy && m.suggestions.length > 0 && (
               <div className="flex flex-wrap gap-2 pt-1">
@@ -161,7 +167,7 @@ function ChatBody({
               onOpenCitation={onOpenCitation}
             />
           ) : (
-            <p className="text-neutral-500">Thinking…</p>
+            <p className="text-neutral-500 dark:text-neutral-400">Thinking…</p>
           )}
         </div>
       )}
@@ -255,7 +261,7 @@ function ChatFooter({ notebookId, chat }: { notebookId: string; chat: ChatApi })
               }}
               className="mt-1 block w-full rounded border border-neutral-300 bg-transparent px-2 py-1 dark:border-neutral-700"
             />
-            <span className="text-xs text-neutral-500">
+            <span className="text-xs text-neutral-500 dark:text-neutral-400">
               {settings.custom_instruction.length}/1000
             </span>
           </label>
