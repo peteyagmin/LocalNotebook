@@ -27,6 +27,8 @@ const base = (extra: Routes = {}): Routes => ({
   'GET /notebooks/n1/sources': [source()],
   'GET /notebooks/n1/chat': [],
   'GET /notebooks/n1/chat/starters': { questions: [] },
+  'GET /notebooks/n1/notes': [],
+  'GET /notebooks/n1/artifacts': [],
   ...extra,
 })
 
@@ -244,6 +246,8 @@ it('searches sources, highlights terms, opens the passage; Ctrl+K focuses the bo
     base({
       'GET /notebooks/n1/search': [
         {
+          kind: 'source',
+          note_id: null,
           chunk_id: 'c1',
           source_id: 's1',
           source_name: 'Doc.pdf',

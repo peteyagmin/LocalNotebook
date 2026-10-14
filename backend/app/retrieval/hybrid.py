@@ -118,3 +118,110 @@ async def retrieve(
             conn.close()
 
     return await asyncio.to_thread(_search)
+
+
+# --- search over sources and notes (FR-7.1) ---------------------------------------------------
+
+EXCERPT_CHARS = 400
+
+
+def fts_search_notes(conn: sqlite3.Connection, query: str, limit: int = CANDIDATES) -> list[str]:
+    terms = re.findall(r"\w+", query)[:MAX_QUERY_TERMS]
+    if not terms:
+        return []
+    match = " OR ".join(f'"{t}"' for t in terms)
+    rows = conn.execute(
+        "SELECT chunk_id AS id FROM note_chunks_fts WHERE note_chunks_fts MATCH ? "
+        "ORDER BY bm25(note_chunks_fts) LIMIT ?",
+        (match, limit),
+    ).fetchall()
+    return [r["id"] for r in rows]
+
+
+def _note_hits(conn: sqlite3.Connection, ranked: list[tuple[str, float]]) -> list[dict]:
+    """Best chunk per note, as search results."""
+    if not ranked:
+        return []
+    marks = ",".join("?" * len(ranked))
+    rows = {
+        r["id"]: r
+        for r in conn.execute(
+            "SELECT c.id, c.note_id, c.text, n.title FROM note_chunks c "
+            f"JOIN notes n ON n.id = c.note_id WHERE c.id IN ({marks})",
+            [cid for cid, _ in ranked],
+        )
+    }
+    seen: set[str] = set()
+    hits = []
+    for cid, score in ranked:
+        row = rows.get(cid)
+        if row is None or row["note_id"] in seen:
+            continue
+        seen.add(row["note_id"])
+        hits.append(
+            {
+                "kind": "note",
+                "chunk_id": cid,
+                "note_id": row["note_id"],
+                "source_id": None,
+                "source_name": row["title"],
+                "location": {"page": None, "heading_path": None, "char_start": 0, "char_end": 0},
+                "excerpt": row["text"][:EXCERPT_CHARS],
+                "char_start": 0,
+                "char_end": 0,
+                "score": score,
+            }
+        )
+    return hits
+
+
+async def search_all(
+    store: NotebookStore,
+    notebook_id: str,
+    llm: LLMClient,
+    embedding_model: str,
+    query: str,
+    limit: int,
+    use_vectors: bool = True,
+) -> list[dict]:
+    """Hybrid search over enabled sources and notes, best first. Each side is ranked by RRF of
+    keyword and vector results; the two lists are merged by score."""
+    query_vector = None
+    if use_vectors:
+        query_vector = (await llm.embed(embedding_model, [query]))[0]
+
+    def _search() -> list[dict]:
+        conn = store.open(notebook_id)
+        try:
+            src_rankings = [fts_search(conn, query)]
+            note_rankings = [fts_search_notes(conn, query)]
+            if query_vector is not None:
+                src_rankings.append(
+                    [cid for cid, _ in VectorIndex(conn).search(query_vector, CANDIDATES)]
+                )
+                note_rankings.append(
+                    [cid for cid, _ in VectorIndex(conn, "notes").search(query_vector, CANDIDATES)]
+                )
+            results = []
+            for r in _load(conn, rrf_merge(src_rankings, limit)):
+                results.append(
+                    {
+                        "kind": "source",
+                        "chunk_id": r.chunk_id,
+                        "note_id": None,
+                        "source_id": r.source_id,
+                        "source_name": r.source_name,
+                        "location": r.location,
+                        "excerpt": r.text[:EXCERPT_CHARS],
+                        "char_start": r.char_start,
+                        "char_end": r.char_end,
+                        "score": r.score,
+                    }
+                )
+            results += _note_hits(conn, rrf_merge(note_rankings, limit))
+            results.sort(key=lambda h: -h["score"])
+            return results[:limit]
+        finally:
+            conn.close()
+
+    return await asyncio.to_thread(_search)

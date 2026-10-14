@@ -1,0 +1,1 @@
+Write a list of frequently asked questions about the material. Start with the level-1 heading "# Frequently asked questions". Then write between 8 and 15 question-and-answer pairs. Write each question as a level-3 heading ("### ...") and put its answer in the paragraph below it, with citations.

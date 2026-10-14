@@ -10,11 +10,14 @@ from app.core import db
 from app.core.ids import new_id, now_iso
 from app.core.notebooks import NotebookStore, NotFound
 from app.ingest.pipeline import run_ingest
-from app.llm.base import LLMClient
+from app.llm.base import LLMClient, LLMError
+from app.notes.service import embed_note
+from app.studio.generate import run_generation
 
 log = logging.getLogger(__name__)
 
 INTERRUPTED_MESSAGE = "Interrupted: the app was closed while this source was being processed."
+INTERRUPTED_ARTIFACT_MESSAGE = "Interrupted: the app was closed while this was being generated."
 
 
 class JobRunner:
@@ -29,7 +32,9 @@ class JobRunner:
         self._llm_factory = llm_factory
         self._get_settings = get_settings
         self._worker_count = workers
-        self._queue: asyncio.Queue[tuple[str, str, str]] = asyncio.Queue()
+        self._queue: asyncio.Queue[tuple[str, str, str, str]] = asyncio.Queue()
+        self._artifact_cancel: dict[str, asyncio.Event] = {}
+        self._artifact_cancelled_early: set[str] = set()
         self._tasks: list[asyncio.Task] = []
         self._cancelled_sources: set[str] = set()
         self._cancelled_notebooks: set[str] = set()
@@ -55,6 +60,13 @@ class JobRunner:
                         "WHERE state IN ('queued','processing')",
                         (INTERRUPTED_MESSAGE, now_iso()),
                     )
+                    # An interrupted regeneration keeps its previous version (state ready).
+                    conn.execute(
+                        "UPDATE artifacts SET state = CASE WHEN has_content = 1 THEN 'ready' "
+                        "ELSE 'failed' END, stage=NULL, error=?, updated_at=? "
+                        "WHERE state IN ('queued','running')",
+                        (INTERRUPTED_ARTIFACT_MESSAGE, now_iso()),
+                    )
             finally:
                 conn.close()
 
@@ -70,28 +82,66 @@ class JobRunner:
 
     # --- submitting and cancelling -----------------------------------------------------------
 
+    def _insert_job(self, conn, kind: str, target_id: str) -> str:
+        job_id, now = new_id(), now_iso()
+        conn.execute(
+            "INSERT INTO jobs (id, kind, target_id, state, created_at, updated_at) "
+            "VALUES (?, ?, ?, 'queued', ?, ?)",
+            (job_id, kind, target_id, now, now),
+        )
+        return job_id
+
     def submit_ingest(self, notebook_id: str, source_id: str) -> str:
         """Queue an ingestion job; the source shows as queued immediately."""
-        job_id = new_id()
-        now = now_iso()
         self._cancelled_sources.discard(source_id)
         conn = self.store.open(notebook_id)
         try:
             with conn:
-                conn.execute(
-                    "INSERT INTO jobs (id, kind, source_id, state, created_at, updated_at) "
-                    "VALUES (?, 'ingest', ?, 'queued', ?, ?)",
-                    (job_id, source_id, now, now),
-                )
+                job_id = self._insert_job(conn, "ingest", source_id)
                 conn.execute(
                     "UPDATE sources SET state='queued', stage=NULL, progress=0, error=NULL, "
                     "updated_at=? WHERE id=?",
-                    (now, source_id),
+                    (now_iso(), source_id),
                 )
         finally:
             conn.close()
-        self._queue.put_nowait((notebook_id, job_id, source_id))
+        self._queue.put_nowait((notebook_id, job_id, "ingest", source_id))
         return job_id
+
+    def submit_artifact(self, notebook_id: str, artifact_id: str) -> str:
+        """Queue (re)generation of an artifact (FR-5.12)."""
+        self._artifact_cancelled_early.discard(artifact_id)
+        conn = self.store.open(notebook_id)
+        try:
+            with conn:
+                job_id = self._insert_job(conn, "artifact", artifact_id)
+                conn.execute(
+                    "UPDATE artifacts SET state='queued', stage=NULL, progress=0, error=NULL, "
+                    "updated_at=? WHERE id=?",
+                    (now_iso(), artifact_id),
+                )
+        finally:
+            conn.close()
+        self._queue.put_nowait((notebook_id, job_id, "artifact", artifact_id))
+        return job_id
+
+    def submit_note_index(self, notebook_id: str, note_id: str) -> str:
+        """Queue the embedding of a note's chunks (keyword search works without it)."""
+        conn = self.store.open(notebook_id)
+        try:
+            with conn:
+                job_id = self._insert_job(conn, "index_note", note_id)
+        finally:
+            conn.close()
+        self._queue.put_nowait((notebook_id, job_id, "index_note", note_id))
+        return job_id
+
+    def cancel_artifact(self, artifact_id: str) -> None:
+        event = self._artifact_cancel.get(artifact_id)
+        if event is not None:
+            event.set()
+        else:
+            self._artifact_cancelled_early.add(artifact_id)
 
     def cancel_source(self, source_id: str) -> None:
         self._cancelled_sources.add(source_id)
@@ -117,31 +167,56 @@ class JobRunner:
 
     async def _worker(self) -> None:
         while True:
-            notebook_id, job_id, source_id = await self._queue.get()
+            notebook_id, job_id, kind, target_id = await self._queue.get()
             try:
-                await self._run(notebook_id, job_id, source_id)
+                await self._run(notebook_id, job_id, kind, target_id)
             except Exception:
                 log.exception("Worker error on job %s", job_id)
             finally:
                 self._queue.task_done()
 
-    async def _run(self, notebook_id: str, job_id: str, source_id: str) -> None:
-        if notebook_id in self._cancelled_notebooks or source_id in self._cancelled_sources:
+    async def _run(self, notebook_id: str, job_id: str, kind: str, target_id: str) -> None:
+        if notebook_id in self._cancelled_notebooks:
+            return
+        if kind == "ingest" and target_id in self._cancelled_sources:
             return
         self._set_job(notebook_id, job_id, "running")
         settings = self._get_settings()
         llm = self._llm_factory(settings)
+        error: str | None = None
         try:
-            error = await run_ingest(
-                self.store,
-                notebook_id,
-                source_id,
-                llm,
-                settings,
-                is_cancelled=lambda: (
-                    source_id in self._cancelled_sources or notebook_id in self._cancelled_notebooks
-                ),
-            )
+            if kind == "ingest":
+                error = await run_ingest(
+                    self.store,
+                    notebook_id,
+                    target_id,
+                    llm,
+                    settings,
+                    is_cancelled=lambda: (
+                        target_id in self._cancelled_sources
+                        or notebook_id in self._cancelled_notebooks
+                    ),
+                )
+            elif kind == "artifact":
+                cancel = asyncio.Event()
+                if target_id in self._artifact_cancelled_early:
+                    cancel.set()
+                self._artifact_cancel[target_id] = cancel
+                try:
+                    error = await run_generation(
+                        self.store, notebook_id, target_id, llm, settings, cancel
+                    )
+                finally:
+                    self._artifact_cancel.pop(target_id, None)
+                    self._artifact_cancelled_early.discard(target_id)
+            elif kind == "index_note":
+                try:
+                    if settings["embedding_model"]:
+                        await embed_note(
+                            self.store, notebook_id, target_id, llm, settings["embedding_model"]
+                        )
+                except (LLMError, NotFound):
+                    pass  # keyword search still finds the note
         finally:
             close = getattr(llm, "aclose", None)
             if close:

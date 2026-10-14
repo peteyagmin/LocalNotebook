@@ -12,6 +12,7 @@ export interface Settings {
   max_sources_per_notebook: number
   max_upload_mb: number
   retrieval_top_k: number
+  context_window_tokens: number
 }
 
 export interface SetupCheck {
@@ -98,9 +99,50 @@ export interface ChatSettings {
   custom_instruction: string
 }
 
+export interface NoteSummary {
+  id: string
+  title: string
+  preview: string
+  updated_at: string
+}
+
+export interface Note {
+  id: string
+  title: string
+  content: string
+  citations: Citation[]
+  created_at: string
+  updated_at: string
+}
+
+export type ArtifactKind = 'summary' | 'briefing' | 'study_guide' | 'faq'
+export type ArtifactState = 'queued' | 'running' | 'ready' | 'failed' | 'cancelled'
+
+export interface Artifact {
+  id: string
+  kind: ArtifactKind
+  title: string
+  state: ArtifactState
+  stage: string | null
+  progress: number
+  error: string | null
+  focus: string
+  has_content: boolean
+  stale: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface ArtifactDetail extends Artifact {
+  content: string
+  citations: Citation[]
+}
+
 export interface SearchResult {
+  kind: 'source' | 'note'
+  note_id: string | null
   chunk_id: string
-  source_id: string
+  source_id: string | null
   source_name: string
   location: Citation['location']
   excerpt: string
@@ -243,6 +285,46 @@ export const api = {
     request<ChatSettings>('PUT', `${nb(id)}/chat/settings`, settings),
   search: (id: string, q: string) =>
     request<SearchResult[]>('GET', `${nb(id)}/search?q=${encodeURIComponent(q)}`),
+  saveMessageToNote: (id: string, messageId: string) =>
+    request<Note>('POST', `${nb(id)}/chat/messages/${messageId}/save-note`),
+
+  listNotes: (id: string) => request<NoteSummary[]>('GET', `${nb(id)}/notes`),
+  getNote: (id: string, noteId: string) => request<Note>('GET', `${nb(id)}/notes/${noteId}`),
+  createNote: (id: string, title = '', content = '') =>
+    request<Note>('POST', `${nb(id)}/notes`, { title, content }),
+  updateNote: (id: string, noteId: string, patch: { title?: string; content?: string }) =>
+    request<Note>('PATCH', `${nb(id)}/notes/${noteId}`, patch),
+  deleteNote: (id: string, noteId: string) => request<void>('DELETE', `${nb(id)}/notes/${noteId}`),
+  combineNotes: (id: string, noteIds: string[]) =>
+    request<Note>('POST', `${nb(id)}/notes/combine`, { note_ids: noteIds }),
+  summarizeNotes: (id: string, noteIds: string[]) =>
+    request<Note>('POST', `${nb(id)}/notes/summarize`, { note_ids: noteIds }),
+  convertNotesToSources: (id: string, noteIds: string[]) =>
+    request<Source[]>('POST', `${nb(id)}/notes/convert-to-source`, { note_ids: noteIds }),
+
+  listArtifacts: (id: string) => request<Artifact[]>('GET', `${nb(id)}/artifacts`),
+  streamArtifacts: (id: string, onEvent: (a: Artifact[]) => void, signal: AbortSignal) =>
+    stream<Artifact[]>(`${nb(id)}/artifacts/stream`, onEvent, signal),
+  createArtifact: (id: string, kind: ArtifactKind, focus: string) =>
+    request<ArtifactDetail>('POST', `${nb(id)}/artifacts`, { kind, focus }),
+  getArtifact: (id: string, artifactId: string) =>
+    request<ArtifactDetail>('GET', `${nb(id)}/artifacts/${artifactId}`),
+  regenerateArtifact: (id: string, artifactId: string, focus?: string) =>
+    request<ArtifactDetail>('POST', `${nb(id)}/artifacts/${artifactId}/regenerate`, { focus }),
+  cancelArtifact: (id: string, artifactId: string) =>
+    request<void>('POST', `${nb(id)}/artifacts/${artifactId}/cancel`),
+  deleteArtifact: (id: string, artifactId: string) =>
+    request<void>('DELETE', `${nb(id)}/artifacts/${artifactId}`),
+  exportArtifact: async (id: string, artifactId: string, format: 'md' | 'docx' | 'pdf') => {
+    const resp = await fetch(`/api/v1${nb(id)}/artifacts/${artifactId}/export?format=${format}`, {
+      headers: { Authorization: `Bearer ${token()}` },
+    })
+    await throwIfError(resp)
+    const disposition = resp.headers.get('Content-Disposition') ?? ''
+    const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? `export.${format}`
+    return { blob: await resp.blob(), filename }
+  },
+
   getSourceContent: (id: string, sourceId: string) =>
     request<SourceContent>('GET', `${nb(id)}/sources/${sourceId}/content`),
 

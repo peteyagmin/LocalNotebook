@@ -20,6 +20,7 @@ const FIELDS: { key: EditableKey; label: string; type?: 'password' | 'number' }[
   { key: 'max_sources_per_notebook', label: 'Maximum sources per notebook', type: 'number' },
   { key: 'max_upload_mb', label: 'Maximum file size (MB)', type: 'number' },
   { key: 'retrieval_top_k', label: 'Passages used per answer', type: 'number' },
+  { key: 'context_window_tokens', label: 'Model context window (tokens)', type: 'number' },
 ]
 
 export function SettingsPage({ settings, onSettingsChange, onClose }: SettingsPageProps) {

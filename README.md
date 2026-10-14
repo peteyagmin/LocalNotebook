@@ -2,11 +2,12 @@
 
 Local, source-grounded research notebook. See `PROJECT_SPEC.md` for the full specification.
 
-**Status:** M2 implemented (grounded chat). On top of M1 (notebooks, PDF/DOCX/TXT/Markdown/pasted
-text sources, source viewer) you can now ask questions: answers stream in with numbered citation
-chips that open the exact passage, the assistant says so when the sources don't cover a question,
-and a search box (Ctrl/Cmd+K) finds passages across enabled sources. Notes, generated outputs, and
-the remaining source types come in later milestones.
+**Status:** M3 implemented (notes and text artifacts). On top of M2 (grounded chat with citations)
+you can now keep chat answers as notes, edit notes in Markdown with a live preview, summarize or
+combine notes, turn notes into sources, and generate four documents from your sources (summary,
+briefing, study guide, FAQ) that you can export as Markdown, Word, or PDF. Artifacts show a "Sources
+changed" badge when a source they used is disabled or removed. Structured artifacts (timeline, mind
+map, flashcards), the remaining source types, and audio overviews come in later milestones.
 
 Ingesting a source calls your model server twice (embeddings, then a short source guide), so a chat
 model and an embedding model must be set in Settings first. Without them a source shows as failed
@@ -41,6 +42,14 @@ uv run pytest
 uv run ruff check
 cd frontend && npm test && npm run lint
 ```
+
+## Generated documents and large notebooks
+
+Artifacts are written from all enabled sources. If they do not fit in your model's context window,
+the app first condenses them in parts, then writes the document from those notes. Set **Model
+context window (tokens)** in Settings to your model's real size (default 8000). PDF export uses a
+system Unicode font when one is installed (DejaVu Sans, Arial); otherwise it uses a built-in
+Latin-only font.
 
 ## Grounding evaluation (QA-4)
 

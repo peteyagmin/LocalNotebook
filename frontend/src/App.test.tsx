@@ -125,6 +125,8 @@ describe('notebook workspace', () => {
       'GET /notebooks/n1/sources': sources,
       'GET /notebooks/n1/chat': [],
       'GET /notebooks/n1/chat/starters': { questions: [] },
+      'GET /notebooks/n1/notes': [],
+      'GET /notebooks/n1/artifacts': [],
       ...extra,
     })
   }

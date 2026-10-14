@@ -5,8 +5,8 @@ edit it except to tick milestone boxes in §12. Stop after each milestone for ow
 
 ## Current status
 
-M0 and M1 accepted. M2 (grounded chat) implemented, awaiting owner acceptance. Next: M3.
-FR-3.6 (Save to note) and the notes half of FR-7.1 were deferred to M3 by the owner's decision.
+M0-M2 accepted. M3 (notes and text artifacts, incl. FR-3.6 and note search) implemented, awaiting
+owner acceptance. Next: M4 (structured artifacts: timeline, mind map, flashcards/quiz).
 
 ## Architecture (as built)
 
@@ -80,6 +80,30 @@ FR-3.6 (Save to note) and the notes half of FR-7.1 were deferred to M3 by the ow
   `test_eval.py`).
 - DB writes that may race (index writes) use `BEGIN IMMEDIATE`; `NotebookStore.open()` only checks
   the registry (no directory scan) because it is called on hot paths.
+
+## M3 additions
+
+- Jobs: `jobs.target_id` (renamed from `source_id`) holds the source, artifact, or note id. Kinds:
+  `ingest`, `artifact`, `index_note`. `JobRunner.submit_artifact` / `cancel_artifact` /
+  `submit_note_index`; interrupted artifacts return to `ready` if they had content, else `failed`.
+- Notes (`notes/service.py`): Markdown plus a citation snapshot list; `[n]` markers refer to that list
+  and unreferenced citations are pruned on save. Chunks + FTS5 are written synchronously on save,
+  vectors by the `index_note` job (`VectorIndex(conn, "notes")`, tables `note_vectors[_fallback]`).
+  `merge_notes` renumbers labels (same chunk = one label); `filter_to_valid` drops unsupplied labels.
+  Summarize/Combine create a new note and keep the originals; Convert makes pasted-text sources
+  with citation markers removed.
+- Artifacts (`studio/`): `generate.run_generation` gathers every chunk of enabled+ready sources,
+  labels them 1..N, and writes in one call if they fit `context_window_tokens` minus a reserve,
+  else map-reduce (`_condense_until_fits`, notes keep their labels, up to 6 rounds). Content lives in
+  `artifacts/<id>/content.md`, citations and `source_ids` in the DB. `stale` is computed on read
+  (a used source is deleted or disabled). A failed or cancelled regeneration keeps the old version
+  (state `ready` plus `error`). Cancel races the pending LLM call (`_race`).
+- Export: `studio/markdown_ir.py` (markdown-it-py) feeds `studio/export.py` (python-docx, reportlab).
+  Only live citations are listed under "Sources". PDF uses a system Unicode font if found.
+- Search is `retrieval/hybrid.search_all` (sources + notes, merged by score; notes deduped per note).
+- Frontend: `StudioPane` (create / generated / notes), `ArtifactView`, `NoteEditor` (autosaves 0.8 s
+  after typing, flushes on close). The detail view is one absolutely positioned element that is
+  either the width of the Studio pane or full width, so Expand does not remount it.
 
 ## Conventions
 

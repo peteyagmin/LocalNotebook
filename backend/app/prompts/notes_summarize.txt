@@ -1,0 +1,1 @@
+The material is the user's own notes. Write a concise summary of them in Markdown: short paragraphs or a short bulleted list, with no top-level heading. Keep the citation numbers that appear in the notes next to the claims they support, and never introduce a number that does not appear in the notes.

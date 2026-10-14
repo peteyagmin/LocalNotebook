@@ -362,7 +362,7 @@ Repo layout, tooling, `scripts/run` and `scripts/dev`, health endpoint, empty th
 * \[x] **M1 — Notebooks \& core ingestion**
 FR-1.1, FR-1.2, FR-1.4; FR-2.1 (PDF, DOCX, TXT, MD, pasted text only), FR-2.3–FR-2.8; DR-1–DR-6.
 *Accept:* upload each supported type and view its extracted text; enable/disable works; failures show retry; restart preserves everything.
-* \[ ] **M2 — Grounded chat**
+* \[x] **M2 — Grounded chat**
 FR-3.1–FR-3.9, FR-7.1, SR-3 prompt hardening.
 *Accept:* answers stream with working citation chips that open the right passage; unanswerable questions are declined; stop works; QA-4 eval script runs and prints results.
 * \[ ] **M3 — Notes \& text artifacts**

@@ -15,7 +15,13 @@ export function AnswerText({ text, citations, onOpenCitation }: AnswerTextProps)
   const byLabel = new Map(citations.map((c) => [c.label, c]))
   const source = text.replace(CITE, '[$1](cite:$1)')
   return (
-    <div className="space-y-2 [&_li]:ml-5 [&_ol]:list-decimal [&_ul]:list-disc">
+    <div
+      className={
+        'space-y-2 [&_blockquote]:border-l-4 [&_blockquote]:border-neutral-300 [&_blockquote]:pl-3 ' +
+        '[&_blockquote]:italic [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:text-lg [&_h2]:font-semibold ' +
+        '[&_h3]:font-semibold [&_li]:ml-5 [&_ol]:list-decimal [&_ul]:list-disc'
+      }
+    >
       <Markdown
         skipHtml
         urlTransform={(url) => (url.startsWith('cite:') ? url : defaultUrlTransform(url))}

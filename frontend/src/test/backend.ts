@@ -13,6 +13,7 @@ export const baseSettings: Settings = {
   max_sources_per_notebook: 50,
   max_upload_mb: 200,
   retrieval_top_k: 8,
+  context_window_tokens: 8000,
 }
 
 type Handler = (body: unknown, url: string) => unknown
@@ -131,6 +132,47 @@ export function chatMessage(
     suggestions: [],
     status: 'complete',
     created_at: '2026-10-14T00:00:00Z',
+    ...over,
+  }
+}
+
+export function artifact(over: Partial<import('../api').Artifact> = {}): import('../api').Artifact {
+  return {
+    id: 'a1',
+    kind: 'summary',
+    title: 'Notebook summary',
+    state: 'ready',
+    stage: null,
+    progress: 1,
+    error: null,
+    focus: '',
+    has_content: true,
+    stale: false,
+    created_at: '2026-10-14T00:00:00Z',
+    updated_at: '2026-10-14T00:00:00Z',
+    ...over,
+  }
+}
+
+export function artifactDetail(
+  over: Partial<import('../api').ArtifactDetail> = {},
+): import('../api').ArtifactDetail {
+  return {
+    ...artifact(),
+    content: '# Notebook summary\n\nZebras graze [1].\n\n## Key points\n\n- Herds',
+    citations: chatMessage().citations,
+    ...over,
+  }
+}
+
+export function note(over: Partial<import('../api').Note> = {}): import('../api').Note {
+  return {
+    id: 'n-1',
+    title: 'My note',
+    content: 'Hello **world** [1]',
+    citations: chatMessage().citations,
+    created_at: '2026-10-14T00:00:00Z',
+    updated_at: '2026-10-14T00:00:00Z',
     ...over,
   }
 }

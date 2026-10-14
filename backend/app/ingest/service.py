@@ -80,6 +80,6 @@ def delete_source(
         index.delete(chunk_ids)
         conn.execute("DELETE FROM chunks_fts WHERE source_id = ?", (source_id,))
         conn.execute("DELETE FROM chunks WHERE source_id = ?", (source_id,))
-        conn.execute("DELETE FROM jobs WHERE source_id = ?", (source_id,))
+        conn.execute("DELETE FROM jobs WHERE target_id = ?", (source_id,))
         conn.execute("DELETE FROM sources WHERE id = ?", (source_id,))
     shutil.rmtree(store.source_dir(notebook_id, source_id), ignore_errors=True)

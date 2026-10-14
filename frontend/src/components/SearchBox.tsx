@@ -104,6 +104,11 @@ export function SearchBox({ notebookId, inputRef, onOpen }: SearchBoxProps) {
                   className="block w-full px-3 py-2 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
                 >
                   <span className="font-semibold">{r.source_name}</span>
+                  {r.kind === 'note' && (
+                    <span className="ml-2 rounded bg-neutral-200 px-1 text-xs dark:bg-neutral-800">
+                      Note
+                    </span>
+                  )}
                   {describe(r.location) && (
                     <span className="ml-2 text-xs text-neutral-500">{describe(r.location)}</span>
                   )}

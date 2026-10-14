@@ -5,12 +5,11 @@ from fastapi import APIRouter, Depends, Query, Request
 from app.api.deps import get_settings, get_store
 from app.core.notebooks import NotebookStore
 from app.llm.base import LLMError
-from app.retrieval.hybrid import retrieve
+from app.retrieval.hybrid import search_all
 
 router = APIRouter()
 
 SEARCH_RESULTS = 20
-EXCERPT_CHARS = 400
 
 
 @router.get("/notebooks/{notebook_id}/search")
@@ -29,26 +28,15 @@ async def search(
         try:
             if not settings["embedding_model"]:
                 raise LLMError("no embedding model")
-            results = await retrieve(
+            results = await search_all(
                 store, notebook_id, llm, settings["embedding_model"], q, SEARCH_RESULTS
             )
         except LLMError:
-            results = await retrieve(
+            results = await search_all(
                 store, notebook_id, llm, "", q, SEARCH_RESULTS, use_vectors=False
             )
     finally:
         close = getattr(llm, "aclose", None)
         if close:
             await close()
-    return [
-        {
-            "chunk_id": r.chunk_id,
-            "source_id": r.source_id,
-            "source_name": r.source_name,
-            "location": r.location,
-            "excerpt": r.text[:EXCERPT_CHARS],
-            "char_start": r.char_start,
-            "char_end": r.char_end,
-        }
-        for r in results
-    ]
+    return [{k: v for k, v in r.items() if k != "score"} for r in results]

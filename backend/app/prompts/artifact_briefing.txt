@@ -1,0 +1,5 @@
+Write a briefing document about the material. Start with the level-1 heading "# Briefing document". Then include these sections in this order:
+## Executive summary - one short paragraph.
+## Key themes - each theme as a bold name followed by one or two sentences.
+## Important details - a bulleted list of facts, figures, names, and dates.
+## Notable quotes - up to 5 direct quotes copied exactly from the material, each written as a line starting with "> " followed by the quote in quotation marks and its citation. If the material has no quotable passages, write "No notable quotes found."

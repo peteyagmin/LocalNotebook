@@ -204,7 +204,7 @@ def test_unfinished_work_marked_interrupted_on_restart(make_client, tmp_path):
             "VALUES ('s1', 'x', 'txt', 1, 'processing', 't', 't')"
         )
         conn.execute(
-            "INSERT INTO jobs (id, kind, source_id, state, created_at, updated_at) "
+            "INSERT INTO jobs (id, kind, target_id, state, created_at, updated_at) "
             "VALUES ('j1', 'ingest', 's1', 'running', 't', 't')"
         )
     conn.close()

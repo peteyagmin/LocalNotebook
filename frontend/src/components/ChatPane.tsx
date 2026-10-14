@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { api, type ChatSettings, type Citation } from '../api'
+import { api, type ChatSettings, type Citation, type Note } from '../api'
 import { useChat } from '../hooks/useChat'
 import { AnswerText } from './AnswerText'
 import { Pane } from './Pane'
@@ -9,13 +9,21 @@ interface ChatPaneProps {
   /** Changes when the set of usable sources changes (refreshes the starter questions). */
   sourcesKey: string
   onOpenCitation: (citation: Citation) => void
+  /** Called with the new note after "Save to note". */
+  onNoteSaved: (note: Note) => void
   /** Covers the pane (the source viewer). */
   overlay?: ReactNode
 }
 
 type ChatApi = ReturnType<typeof useChat>
 
-export function ChatPane({ notebookId, sourcesKey, onOpenCitation, overlay }: ChatPaneProps) {
+export function ChatPane({
+  notebookId,
+  sourcesKey,
+  onOpenCitation,
+  onNoteSaved,
+  overlay,
+}: ChatPaneProps) {
   const chat = useChat(notebookId, sourcesKey)
   return (
     <Pane
@@ -26,7 +34,12 @@ export function ChatPane({ notebookId, sourcesKey, onOpenCitation, overlay }: Ch
       overlay={overlay}
       footer={<ChatFooter notebookId={notebookId} chat={chat} />}
     >
-      <ChatBody chat={chat} onOpenCitation={onOpenCitation} />
+      <ChatBody
+        notebookId={notebookId}
+        chat={chat}
+        onOpenCitation={onOpenCitation}
+        onNoteSaved={onNoteSaved}
+      />
     </Pane>
   )
 }
@@ -42,12 +55,19 @@ const buttonClass =
   'rounded border border-neutral-300 px-2 py-1 text-xs hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800'
 
 function ChatBody({
+  notebookId,
   chat,
   onOpenCitation,
+  onNoteSaved,
 }: {
+  notebookId: string
   chat: ChatApi
   onOpenCitation: (citation: Citation) => void
+  onNoteSaved: (note: Note) => void
 }) {
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
+
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -84,6 +104,23 @@ function ChatBody({
           <div key={m.id} className="mr-4 space-y-1">
             <AnswerText text={m.content} citations={m.citations} onOpenCitation={onOpenCitation} />
             {m.status === 'stopped' && <p className="text-xs text-neutral-500">Stopped</p>}
+            <button
+              type="button"
+              className={buttonClass}
+              disabled={savedIds.has(m.id)}
+              onClick={() => {
+                setSaveError(null)
+                api
+                  .saveMessageToNote(notebookId, m.id)
+                  .then((note) => {
+                    setSavedIds(new Set(savedIds).add(m.id))
+                    onNoteSaved(note)
+                  })
+                  .catch((e) => setSaveError(e instanceof Error ? e.message : String(e)))
+              }}
+            >
+              {savedIds.has(m.id) ? 'Saved to notes' : 'Save to note'}
+            </button>
             {m.status === 'error' && (
               <p className="text-xs text-neutral-500">Incomplete: the model stopped responding</p>
             )}
@@ -119,6 +156,11 @@ function ChatBody({
         </div>
       )}
 
+      {saveError && (
+        <p role="alert" className="text-red-600">
+          {saveError}
+        </p>
+      )}
       {chat.error && (
         <p role="alert" className="text-red-600">
           {chat.error.message}

@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { api, type Notebook } from '../api'
 import { SearchBox } from '../components/SearchBox'
 import type { ViewTarget } from '../components/SourceViewer'
+import type { StudioTarget } from '../components/studio'
 import { Workspace } from './Workspace'
 
 export function NotebookPage({ notebookId }: { notebookId: string }) {
   const [notebook, setNotebook] = useState<Notebook | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [viewing, setViewing] = useState<ViewTarget | null>(null)
+  const [studio, setStudio] = useState<StudioTarget | null>(null)
   const searchRef = useRef<HTMLInputElement>(null) as React.RefObject<HTMLInputElement>
 
   useEffect(() => {
@@ -48,14 +50,23 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
           notebookId={notebookId}
           inputRef={searchRef}
           onOpen={(r) =>
-            setViewing({
-              sourceId: r.source_id,
-              highlight: { start: r.char_start, end: r.char_end },
-            })
+            r.kind === 'note' && r.note_id
+              ? setStudio({ type: 'note', id: r.note_id })
+              : r.source_id &&
+                setViewing({
+                  sourceId: r.source_id,
+                  highlight: { start: r.char_start, end: r.char_end },
+                })
           }
         />
       </div>
-      <Workspace notebookId={notebookId} viewing={viewing} onView={setViewing} />
+      <Workspace
+        notebookId={notebookId}
+        viewing={viewing}
+        onView={setViewing}
+        studio={studio}
+        onStudio={setStudio}
+      />
     </div>
   )
 }

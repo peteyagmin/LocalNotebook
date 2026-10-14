@@ -1,0 +1,5 @@
+Write a study guide for the material. Start with the level-1 heading "# Study guide". Then include these sections in this order:
+## Key concepts - a bulleted list; each concept in bold followed by a one or two sentence explanation.
+## Short-answer questions - exactly 10 numbered questions, each answerable in one or two sentences from the material.
+## Answer key - 10 numbered answers matching the questions, each with citations.
+## Glossary - important terms, each in bold followed by a short definition.

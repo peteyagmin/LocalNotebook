@@ -1,0 +1,1 @@
+Write a summary of all of the material. Start with the level-1 heading "# Notebook summary". Then write 1 to 3 paragraphs that give the overall picture. Finish with a "## Key points" section containing a bulleted list of the most important points.

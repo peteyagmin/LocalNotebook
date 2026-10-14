@@ -18,6 +18,10 @@ Only MIT, BSD, Apache-2.0, ISC, MPL-2.0, Unlicense, and PSF licenses are allowed
 | python-docx | 1.2.0 | MIT (depends on lxml, BSD-3-Clause) | M1 |
 | python-multipart | 0.0.32 | Apache-2.0 | M1 |
 | sqlite-vec | 0.1.9 | MIT OR Apache-2.0 | M1 |
+| reportlab | 5.0.1 | BSD-3-Clause | M3 |
+| pillow (required by reportlab) | 12.3.0 | MIT-CMU (the HPND "PIL Software License"; not on the §0 list, approved by the owner on 2026-10-14) | M3 |
+| markdown-it-py | 4.2.0 | MIT (depends on mdurl 0.1.2, MIT) | M3 |
+| charset-normalizer (required by reportlab) | 3.5.2 | MIT | M3 |
 | numpy | 2.5.4 | BSD-3-Clause (wheel also bundles components under 0BSD, MIT, Zlib, CC0-1.0) | M2 |
 
 ## JavaScript (`frontend/package.json`)
