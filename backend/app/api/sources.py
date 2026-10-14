@@ -349,8 +349,38 @@ def refresh_source(
             raise AppError(409, "busy", "Wait for this source to finish processing first.")
         if source["state"] == "ready":
             service.archive_current_version(store, notebook_id, conn, source_id)
-        (store.source_dir(notebook_id, source_id) / "original.html").unlink(missing_ok=True)
+            # The old capture stays active until the new one has been read, indexed and
+            # summarized; if anything fails it is simply kept (see service.settle_failure).
+            service.set_meta(conn, source_id, refreshing=True)
         runner.submit_ingest(notebook_id, source_id)
         return service.get_source(conn, source_id)
     finally:
         conn.close()
+
+
+@router.get("/notebooks/{notebook_id}/sources/{source_id}/versions")
+def list_versions(
+    notebook_id: str, source_id: str, store: NotebookStore = Depends(get_store)
+) -> list[dict]:
+    """Earlier captures of a web source (the current one is the source itself)."""
+    conn = store.open(notebook_id)
+    try:
+        return service.list_versions(conn, source_id)
+    finally:
+        conn.close()
+
+
+@router.get("/notebooks/{notebook_id}/sources/{source_id}/versions/{version}/content")
+def get_version_content(
+    notebook_id: str, source_id: str, version: int, store: NotebookStore = Depends(get_store)
+) -> dict:
+    conn = store.open(notebook_id)
+    try:
+        if version not in {v["version"] for v in service.list_versions(conn, source_id)}:
+            raise AppError(404, "not_found", "That version no longer exists.")
+    finally:
+        conn.close()
+    path = store.source_dir(notebook_id, source_id) / "versions" / str(version) / "extracted.json"
+    if not path.exists():
+        raise AppError(404, "not_found", "That version's text is not available.")
+    return read_extracted(path)

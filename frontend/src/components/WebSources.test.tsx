@@ -14,6 +14,7 @@ import {
 
 const caps = (over = {}) => ({
   ocr: true,
+  audio_overview: { ready: true, problems: [] },
   stt: { configured: true, installed: true },
   web_import: true,
   discover: { allowed: true, configured: true },
@@ -433,7 +434,7 @@ it('downloads the speech model only after confirmation and shows progress', asyn
   render(<App />)
   const button = await screen.findByRole('button', { name: 'Download model' })
   await userEvent.click(button)
-  expect(confirm).toHaveBeenCalledWith(expect.stringContaining('"tiny"'))
+  expect(confirm).toHaveBeenCalledWith(expect.stringContaining('“tiny”'))
   expect(calls.some((c) => c.method === 'POST')).toBe(false) // declined: nothing downloaded
   confirm.mockReturnValue(true)
   await userEvent.click(screen.getByRole('button', { name: 'Download model' }))
@@ -473,4 +474,44 @@ it('explains why the model cannot be downloaded when downloads are off, and show
   })
   render(<App />)
   expect(await screen.findByText(/is installed/)).toBeInTheDocument()
+})
+
+it('downloads the text-to-speech model and voices only after confirmation', async () => {
+  const status = (over = {}) => ({
+    model: 'org/kokoro',
+    voices: ['af_a', 'am_b'],
+    configured: true,
+    installed: false,
+    downloads_allowed: true,
+    espeak: false,
+    ffmpeg: true,
+    state: 'idle',
+    ...over,
+  })
+  const calls = mockBackend({
+    'GET /settings': {
+      ...baseSettings,
+      tts_model: 'org/kokoro',
+      tts_voice_a: 'af_a',
+      tts_voice_b: 'am_b',
+    },
+    'GET /notebooks': [],
+    'GET /speech/stt': { model: '', configured: false, installed: false, state: 'idle' },
+    'GET /speech/tts': status(),
+    'POST /speech/tts/download': status({ state: 'downloading', progress: 0 }),
+  })
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+  window.location.hash = '#/settings'
+  render(<App />)
+  expect(await screen.findByLabelText('Voice for Host A')).toHaveValue('af_a')
+  expect(await screen.findByText(/espeak-ng is not installed/)).toBeInTheDocument()
+  const button = await screen.findByRole('button', { name: 'Download model and voices' })
+  await userEvent.click(button)
+  expect(confirm).toHaveBeenCalledWith(expect.stringContaining('“org/kokoro”'))
+  expect(calls.some((c) => c.method === 'POST')).toBe(false)
+  confirm.mockReturnValue(true)
+  await userEvent.click(button)
+  await waitFor(() =>
+    expect(calls.find((c) => c.path === '/speech/tts/download')?.body).toEqual({ confirm: true }),
+  )
 })

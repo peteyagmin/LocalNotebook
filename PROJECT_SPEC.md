@@ -371,7 +371,7 @@ FR-4.1–FR-4.3; FR-5.1–FR-5.4, FR-5.9–FR-5.13 (Markdown artifacts).
 * \[x] **M4 — Structured artifacts**
 FR-5.5–FR-5.7 with schema validation and retry.
 *Accept:* timeline, mind map (click-to-chat works), flashcards and quiz render and export.
-* \[ ] **M5 — Remaining source types \& web**
+* \[x] **M5 — Remaining source types \& web**
 FR-2.1 (HTML, EPUB, images, audio), FR-2.2 OCR, FR-2.9–FR-2.12, SR-4, FR-8.6.
 *Accept:* webpage and YouTube imports work with timestamped citations; caption-less video fails with the correct message when the setting is off and transcribes when on; Discover returns ranked suggestions from a configured SearXNG instance and imports only selected items; private-IP URLs are refused.
 * \[ ] **M6 — Audio overview**

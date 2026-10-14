@@ -20,12 +20,15 @@ from app.chat.service import build_citation, describe_location
 from app.core.ids import now_iso
 from app.core.notebooks import NotebookStore, NotFound
 from app.ingest.chunker import est_tokens
+from app.ingest.services import Services
 from app.llm.base import LLMClient, LLMError, Message
 from app.llm.prompts import render_prompt
 from app.llm.structured import StructuredOutputError
 from app.notes.service import filter_to_valid
 from app.retrieval.hybrid import Retrieved
 from app.retrieval.vectors import ENABLED_READY
+from app.speech.tts import TTSUnavailable
+from app.studio import audio
 from app.studio.structured import PARTS, build_data, is_empty, used_labels
 
 log = logging.getLogger(__name__)
@@ -39,11 +42,17 @@ KINDS = {
     "timeline": "Timeline",
     "mind_map": "Mind map",
     "flashcards": "Flashcards & quiz",
+    "audio_overview": "Audio overview",
 }
 JSON_KINDS = frozenset(PARTS)
 OUTPUT_RESERVE_TOKENS = 1500
 # Structured answers are longer than most prose, so leave more room for them.
-OUTPUT_RESERVE_BY_KIND = {"timeline": 2500, "mind_map": 2000, "flashcards": 3000}
+OUTPUT_RESERVE_BY_KIND = {
+    "timeline": 2500,
+    "mind_map": 2000,
+    "flashcards": 3000,
+    "audio_overview": 3000,
+}
 PROMPT_OVERHEAD_TOKENS = 700
 MAX_CONDENSE_ROUNDS = 6
 MAX_FOCUS_CHARS = 500
@@ -159,6 +168,7 @@ async def run_generation(
     llm: LLMClient,
     settings: dict,
     cancel: asyncio.Event,
+    services: Services | None = None,
 ) -> str | None:
     """Generate one artifact. Returns None on success, else the user-readable reason it failed."""
 
@@ -172,6 +182,7 @@ async def run_generation(
             if row is None:
                 raise Cancelled
             kind, focus = row["kind"], row["focus"]
+            options = json.loads(row["options"]) if row["options"] else None
             passages = gather_passages(conn)
         finally:
             conn.close()
@@ -198,13 +209,24 @@ async def run_generation(
         reserve = OUTPUT_RESERVE_BY_KIND.get(kind, OUTPUT_RESERVE_TOKENS)
         budget = max(1000, settings["context_window_tokens"] - reserve - PROMPT_OVERHEAD_TOKENS)
         texts = [passage_text(i, r) for i, r in enumerate(passages, start=1)]
-        task = "" if kind in JSON_KINDS else render_prompt(f"artifact_{kind}")
+        task = (
+            ""
+            if kind in JSON_KINDS or kind == "audio_overview"
+            else render_prompt(f"artifact_{kind}")
+        )
 
         material_parts = texts
         if sum(est_tokens(len(t)) for t in texts) > budget:
             material_parts = await _condense_until_fits(
                 llm, model, texts, budget, focus, cancel, stage
             )
+        if kind == "audio_overview":
+            services = services or Services(models_dir=store.data_root / "models")
+            await _generate_audio(
+                store, notebook_id, artifact_id, llm, settings, services, cancel, stage, options,
+                focus, passages, texts, material_parts, condensed=material_parts is not texts,
+            )  # fmt: skip
+            return None
         stage("Writing", 0.8)
         citations = [build_citation(i, r) for i, r in enumerate(passages, start=1)]
         if kind in JSON_KINDS:
@@ -259,7 +281,13 @@ async def run_generation(
         cancelled = True
     except NotFound:
         return "Cancelled."
-    except (GenerationError, LLMError, StructuredOutputError) as e:
+    except (
+        GenerationError,
+        LLMError,
+        StructuredOutputError,
+        audio.AudioError,
+        TTSUnavailable,
+    ) as e:
         message, cancelled = str(e), False
     except Exception as e:
         log.exception("Artifact generation failed for %s", artifact_id)
@@ -325,3 +353,134 @@ async def _condense_until_fits(
         "The sources are too large for this model's context window. Increase the context "
         "window in Settings or turn off some sources."
     )
+
+
+# --- audio overview (FR-6.1, FR-6.4) ----------------------------------------------------------
+
+
+def _citation_snapshots(chunk_ids: list[str], known: dict[str, dict]) -> list[dict]:
+    """Snapshots of the chunks a script cites, numbered by first appearance."""
+    ordered = list(dict.fromkeys(c for c in chunk_ids if c in known))
+    return [{**known[c], "label": i} for i, c in enumerate(ordered, start=1)]
+
+
+def _voices(settings: dict) -> dict[str, str]:
+    return {"A": settings["tts_voice_a"], "B": settings["tts_voice_b"]}
+
+
+async def _generate_audio(
+    store, notebook_id, artifact_id, llm, settings, services, cancel, stage, raw_options,
+    focus, passages, texts, material_parts, condensed,
+):  # fmt: skip
+    options = audio.normalize_options(raw_options)
+
+    def check() -> None:
+        if cancel.is_set():
+            raise Cancelled
+
+    # Find out about missing speech setup before spending time on the script.
+    stage("Preparing the voices", 0.07)
+    engine = await asyncio.to_thread(services.tts, settings, services.models_dir)
+    check()
+    title, turns = await audio.write_script(
+        llm,
+        settings["chat_model"],
+        options,
+        material_parts,
+        condensed,
+        passages,
+        texts,
+        lambda task, material: build_messages(task, material, focus, system="audio_system"),
+        lambda awaitable: _race(awaitable, cancel),
+        stage,
+        check,
+    )
+    folder = artifact_dir(store, notebook_id, artifact_id)
+    timed, duration = await audio.speak_and_mix(
+        turns, engine, _voices(settings), folder, stage, check
+    )
+    audio.write_transcript(
+        folder,
+        {
+            "title": title,
+            "options": options,
+            "turns": timed,
+            "duration": duration,
+            "outdated": False,
+        },
+    )
+    known = {r.chunk_id: build_citation(i, r) for i, r in enumerate(passages, start=1)}
+    used = _citation_snapshots([c for t in turns for c in t["chunk_ids"]], known)
+    _update(
+        store, notebook_id, artifact_id,
+        state="ready", stage=None, progress=1.0, error=None, has_content=1,
+        citations=json.dumps(used),
+        source_ids=json.dumps(sorted({p.source_id for p in passages})),
+    )  # fmt: skip
+
+
+async def run_resynthesis(
+    store: NotebookStore,
+    notebook_id: str,
+    artifact_id: str,
+    settings: dict,
+    cancel: asyncio.Event,
+    services: Services | None = None,
+) -> str | None:
+    """Rebuild the audio from the (possibly edited) script without writing a new one (FR-6.4)."""
+    services = services or Services(models_dir=store.data_root / "models")
+
+    def stage(name: str, progress: float) -> None:
+        _update(store, notebook_id, artifact_id, stage=name, progress=progress)
+
+    def check() -> None:
+        if cancel.is_set():
+            raise Cancelled
+
+    try:
+        folder = artifact_dir(store, notebook_id, artifact_id)
+        transcript = audio.read_transcript(folder)
+        conn = store.open(notebook_id)
+        try:
+            row = conn.execute("SELECT * FROM artifacts WHERE id = ?", (artifact_id,)).fetchone()
+        finally:
+            conn.close()
+        if row is None:
+            raise Cancelled
+        if transcript is None:
+            raise GenerationError("There is no script to speak yet.")
+        _update(
+            store, notebook_id, artifact_id,
+            state="running", error=None, stage="Preparing the voices", progress=0.05,
+        )  # fmt: skip
+        engine = await asyncio.to_thread(services.tts, settings, services.models_dir)
+        turns = [
+            {"speaker": t["speaker"], "text": t["text"], "chunk_ids": t.get("chunk_ids", [])}
+            for t in transcript["turns"]
+        ]
+        timed, duration = await audio.speak_and_mix(
+            turns, engine, _voices(settings), folder, stage, check
+        )
+        transcript.update(turns=timed, duration=duration, outdated=False)
+        audio.write_transcript(folder, transcript)
+        known = {c["chunk_id"]: c for c in json.loads(row["citations"])}
+        used = _citation_snapshots([c for t in turns for c in t["chunk_ids"]], known)
+        _update(
+            store, notebook_id, artifact_id,
+            state="ready", stage=None, progress=1.0, error=None, citations=json.dumps(used),
+        )  # fmt: skip
+        return None
+    except Cancelled:
+        message, cancelled = "Cancelled.", True
+    except NotFound:
+        return "Cancelled."
+    except (GenerationError, audio.AudioError, TTSUnavailable) as e:
+        message, cancelled = str(e), False
+    except Exception as e:
+        log.exception("Re-synthesis failed for %s", artifact_id)
+        message, cancelled = f"Unexpected error ({e.__class__.__name__}). See the app log.", False
+    try:
+        _record_failure(store, notebook_id, artifact_id, message, cancelled)
+    except Exception:  # deleted meanwhile
+        log.debug("Could not record failure for %s", artifact_id)
+    return message

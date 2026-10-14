@@ -9,6 +9,7 @@ import sqlite3
 from app.core.errors import AppError
 from app.core.ids import new_id, now_iso
 from app.core.notebooks import NotebookStore, NotFound
+from app.studio import audio
 from app.studio.generate import JSON_KINDS, KINDS, MAX_FOCUS_CHARS, artifact_dir
 
 ACTIVE_STATES = ("queued", "running")
@@ -36,6 +37,7 @@ def _to_dict(conn: sqlite3.Connection, row: sqlite3.Row) -> dict:
         "progress": row["progress"],
         "error": row["error"],
         "focus": row["focus"],
+        "options": json.loads(row["options"]) if row["options"] else None,
         "has_content": bool(row["has_content"]),
         "stale": bool(row["has_content"]) and _stale(conn, source_ids),
         "created_at": row["created_at"],
@@ -62,11 +64,14 @@ def get_artifact(
     row = get_row(conn, artifact_id)
     data = _to_dict(conn, row)
     json_kind = row["kind"] in JSON_KINDS
-    data["format"] = "json" if json_kind else "markdown"
+    audio_kind = row["kind"] == "audio_overview"
+    data["format"] = "audio" if audio_kind else "json" if json_kind else "markdown"
     data["content"] = ""  # Markdown artifacts
     data["data"] = None  # structured artifacts
     data["citations"] = []
-    if row["has_content"]:
+    if row["has_content"] and audio_kind:
+        data["data"] = audio.read_transcript(artifact_dir(store, notebook_id, artifact_id))
+    if row["has_content"] and not audio_kind:
         filename = "content.json" if json_kind else "content.md"
         path = artifact_dir(store, notebook_id, artifact_id) / filename
         text = path.read_text(encoding="utf-8") if path.exists() else ""
@@ -74,6 +79,7 @@ def get_artifact(
             data["data"] = json.loads(text) if text else None
         else:
             data["content"] = text
+    if row["has_content"]:
         citations = json.loads(row["citations"])
         ids = [c["chunk_id"] for c in citations]
         existing: set[str] = set()
@@ -97,17 +103,66 @@ def validate_focus(focus: str | None) -> str:
     return focus
 
 
-def create_artifact(conn: sqlite3.Connection, kind: str, focus: str) -> str:
+def create_artifact(
+    conn: sqlite3.Connection, kind: str, focus: str, options: dict | None = None
+) -> str:
     if kind not in KINDS:
         raise AppError(422, "unknown_kind", f"Unknown artifact type '{kind}'.")
+    stored = audio.normalize_options(options) if kind == "audio_overview" else None
     artifact_id, now = new_id(), now_iso()
     with conn:
         conn.execute(
-            "INSERT INTO artifacts (id, kind, title, state, focus, created_at, updated_at) "
-            "VALUES (?,?,?,?,?,?,?)",
-            (artifact_id, kind, KINDS[kind], "queued", focus, now, now),
+            "INSERT INTO artifacts "
+            "(id, kind, title, state, focus, options, created_at, updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (
+                artifact_id,
+                kind,
+                KINDS[kind],
+                "queued",
+                focus,
+                json.dumps(stored) if stored else None,
+                now,
+                now,
+            ),
         )
     return artifact_id
+
+
+def save_script(
+    store: NotebookStore,
+    notebook_id: str,
+    conn: sqlite3.Connection,
+    artifact_id: str,
+    turns: list[dict],
+) -> None:
+    """Replace an audio overview's script (FR-6.4). The audio is rebuilt later, on request;
+    turns that did not move keep their times so the old audio still lines up with them."""
+    row = get_row(conn, artifact_id)
+    folder = artifact_dir(store, notebook_id, artifact_id)
+    transcript = audio.read_transcript(folder) if row["kind"] == "audio_overview" else None
+    if transcript is None:
+        raise AppError(409, "no_script", "This has no script to edit.")
+    if row["state"] in ACTIVE_STATES:
+        raise AppError(409, "busy", "Wait for this to finish first.")
+    clean = audio.validate_turns(turns)
+    old = transcript["turns"]
+    merged = []
+    for i, turn in enumerate(clean):
+        same = (
+            i < len(old) and old[i]["speaker"] == turn["speaker"] and old[i]["text"] == turn["text"]
+        )
+        merged.append(
+            {
+                **turn,
+                "start": old[i].get("start") if same else None,
+                "end": old[i].get("end") if same else None,
+            }
+        )
+    unchanged = len(clean) == len(old) and all(t["start"] is not None for t in merged)
+    transcript["turns"] = merged
+    transcript["outdated"] = transcript.get("outdated", False) or not unchanged
+    audio.write_transcript(folder, transcript)
 
 
 def delete_artifact(

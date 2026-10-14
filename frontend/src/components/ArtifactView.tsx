@@ -4,12 +4,15 @@ import {
   type ArtifactDetail,
   type ArtifactFormat,
   type ArtifactKind,
+  type AudioOptions,
   type Citation,
   type FlashcardsData,
   type MindNodeData,
   type TimelineData,
 } from '../api'
 import { AnswerText } from './AnswerText'
+import { AudioOverviewView } from './AudioOverviewView'
+import { AudioOptionsFields } from './AudioOptionsFields'
 import { FlashcardsView } from './FlashcardsView'
 import { MindMapView } from './MindMapView'
 import { TimelineView } from './TimelineView'
@@ -36,6 +39,7 @@ const FORMAT_LABELS: Record<ArtifactFormat, string> = {
   png: 'PNG image (.png)',
   'csv-flashcards': 'Flashcards (.csv)',
   'csv-quiz': 'Quiz (.csv)',
+  mp3: 'MP3 audio (.mp3)',
 }
 
 /** Export formats offered per artifact type (FR-5.11). */
@@ -47,6 +51,7 @@ const EXPORTS: Record<ArtifactKind, ArtifactFormat[]> = {
   timeline: ['json', 'md', 'docx', 'pdf'],
   mind_map: ['png', 'json'],
   flashcards: ['csv-flashcards', 'csv-quiz', 'json'],
+  audio_overview: ['mp3'],
 }
 
 const buttonClass =
@@ -66,7 +71,9 @@ export function ArtifactView({
   const [artifact, setArtifact] = useState<ArtifactDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [focus, setFocus] = useState('')
+  const [options, setOptions] = useState<AudioOptions>({ length: 'default', format: 'deep_dive' })
   const [exportOpen, setExportOpen] = useState(false)
+  const [reload, setReload] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -76,12 +83,13 @@ export function ArtifactView({
         if (cancelled) return
         setArtifact(a)
         setFocus(a.focus)
+        if (a.options) setOptions(a.options)
       })
       .catch((e) => !cancelled && setError(e instanceof Error ? e.message : String(e)))
     return () => {
       cancelled = true
     }
-  }, [notebookId, artifactId, version])
+  }, [notebookId, artifactId, version, reload])
 
   async function run(action: () => Promise<unknown>) {
     setError(null)
@@ -234,6 +242,17 @@ export function ArtifactView({
             onOpenCitation={onOpenCitation}
           />
         )}
+        {artifact.has_content && artifact.format === 'audio' && artifact.data && (
+          <AudioOverviewView
+            notebookId={notebookId}
+            artifact={artifact}
+            onOpenCitation={onOpenCitation}
+            onChanged={() => {
+              onChanged()
+              setReload((n) => n + 1)
+            }}
+          />
+        )}
         {artifact.has_content && artifact.kind === 'mind_map' && artifact.data && (
           <div className="h-full min-h-[360px]">
             <MindMapView root={(artifact.data as { root: MindNodeData }).root} onAsk={onAskChat} />
@@ -245,6 +264,9 @@ export function ArtifactView({
       </div>
 
       <footer className="space-y-2 border-t border-neutral-200 p-3 dark:border-neutral-800">
+        {artifact.kind === 'audio_overview' && (
+          <AudioOptionsFields value={options} onChange={setOptions} />
+        )}
         <label className="block text-xs">
           Focus (optional)
           <textarea
@@ -260,7 +282,16 @@ export function ArtifactView({
             type="button"
             className={buttonClass}
             disabled={working}
-            onClick={() => void run(() => api.regenerateArtifact(notebookId, artifactId, focus))}
+            onClick={() =>
+              void run(() =>
+                api.regenerateArtifact(
+                  notebookId,
+                  artifactId,
+                  focus,
+                  artifact.kind === 'audio_overview' ? options : undefined,
+                ),
+              )
+            }
           >
             Regenerate
           </button>

@@ -17,7 +17,7 @@ from tests.fakes import (
     make_services,
     page,
 )
-from tests.helpers import brain
+from tests.helpers import brain, original_prompt
 
 NB = "/api/v1/notebooks"
 
@@ -360,3 +360,127 @@ def test_caption_preference_order():
 def test_captions_are_merged_into_half_minute_blocks():
     blocks = youtube.caption_blocks(caption_lines(20))  # 20 lines * 5 s = 100 s
     assert 3 <= len(blocks) <= 5 and blocks[0][1] == 0.0 and blocks[-1][2] > 90
+
+
+# --- a failed refresh keeps the previous capture; earlier versions can be read -------------------
+
+URL = "https://a.example/p"
+
+
+def imported(make_client, tmp_path):
+    web = FakeWeb({URL: page("Edition One", body="The original text about harbors. " * 12)})
+    fake = FakeLLMClient(default_reply=brain)
+    client = make_client(fake, services=make_services(tmp_path, web=web))
+    client.put("/api/v1/settings", json={"chat_model": "c", "embedding_model": "e"})
+    nid = client.post(NB, json={"name": "NB"}).json()["id"]
+    urls(client, nid, URL)
+    source = wait_idle(client, nid)[0]
+    assert source["state"] == "ready"
+    return client, fake, web, nid, source
+
+
+def assert_previous_capture_intact(client, nid, source, tmp_path):
+    folder = tmp_path / "notebooks" / nid / "sources" / source["id"]
+    assert b"Edition One" in (folder / "original.html").read_bytes()
+    assert not list(folder.glob("*.new"))  # no half-written files left behind
+    assert (
+        "original text about harbors"
+        in client.get(f"{NB}/{nid}/sources/{source['id']}/content").json()["text"]
+    )
+    assert client.get(f"{NB}/{nid}/search", params={"q": "harbors"}).json()  # still searchable
+
+
+@pytest.mark.parametrize("failure", ["fetch", "unreadable", "embedding", "guide"])
+def test_a_failed_refresh_leaves_the_previous_capture_ready_and_usable(
+    make_client, tmp_path, failure
+):
+    client, fake, web, nid, source = imported(make_client, tmp_path)
+    if failure == "fetch":
+        web.pages[URL] = FetchError("The website took too long to respond.")
+        reason = "took too long"
+    elif failure == "unreadable":
+        web.pages[URL] = page("Tiny", body="Hello.")
+        reason = "Could not extract readable content"
+    elif failure == "embedding":
+        web.pages[URL] = page("Edition Two", body="Brand new text about ships. " * 12)
+        fake._unreachable = True
+        reason = "model server"
+    else:
+        web.pages[URL] = page("Edition Two", body="Brand new text about ships. " * 12)
+        fake._default = lambda m, msgs: (
+            "not json" if "BEGIN DOCUMENT" in original_prompt(msgs) else brain(m, msgs)
+        )
+        reason = "valid answer"
+    assert client.post(f"{NB}/{nid}/sources/{source['id']}/refresh").status_code == 202
+    after = wait_idle(client, nid)[0]
+    assert after["state"] == "ready"  # still usable for chat and artifacts
+    assert after["error"].startswith("The refresh failed:") and reason in after["error"]
+    assert after["version_count"] == 0  # nothing changed, so no earlier version was created
+    assert after["name"] == "Edition One" and after["guide"]
+    assert "refreshing" not in after["meta"]
+    assert_previous_capture_intact(client, nid, source, tmp_path)
+    assert client.get(f"{NB}/{nid}/sources/{source['id']}/versions").json() == []
+
+
+def test_the_refresh_works_next_time_and_clears_the_warning(make_client, tmp_path):
+    client, fake, web, nid, source = imported(make_client, tmp_path)
+    web.pages[URL] = FetchError("down")
+    client.post(f"{NB}/{nid}/sources/{source['id']}/refresh")
+    assert "refresh failed" in wait_idle(client, nid)[0]["error"]
+    web.pages[URL] = page("Edition Two", body="Brand new text about ships. " * 12)
+    client.post(f"{NB}/{nid}/sources/{source['id']}/refresh")
+    done = wait_idle(client, nid)[0]
+    assert done["state"] == "ready" and done["error"] is None and done["name"] == "Edition Two"
+    assert done["version_count"] == 1
+    assert (
+        "Brand new text" in client.get(f"{NB}/{nid}/sources/{source['id']}/content").json()["text"]
+    )
+
+
+def test_an_ordinary_failure_is_still_a_failure(make_client, tmp_path):
+    web = FakeWeb({URL: FetchError("down")})
+    client = make_client(
+        FakeLLMClient(default_reply=brain), services=make_services(tmp_path, web=web)
+    )
+    client.put("/api/v1/settings", json={"chat_model": "c", "embedding_model": "e"})
+    nid = client.post(NB, json={"name": "NB"}).json()["id"]
+    urls(client, nid, URL)
+    assert wait_idle(client, nid)[0]["state"] == "failed"  # never had content: nothing to keep
+
+
+def test_a_refresh_interrupted_by_a_restart_keeps_the_previous_capture(make_client, tmp_path):
+    client, _fake, _web, nid, source = imported(make_client, tmp_path)
+    client.post(f"{NB}/{nid}/sources/{source['id']}/refresh")
+    wait_idle(client, nid)  # finished; now fake what a crash mid-refresh leaves behind
+    conn = client.app.state.store.open(nid)
+    with conn:
+        conn.execute("UPDATE sources SET state='processing' WHERE id = ?", (source["id"],))
+        conn.execute(
+            "UPDATE sources SET meta = json_set(COALESCE(meta,'{}'), '$.refreshing', json('true')) "
+            "WHERE id = ?",
+            (source["id"],),
+        )
+    conn.close()
+    restarted = make_client(services=make_services(tmp_path, web=FakeWeb({})))
+    after = restarted.get(f"{NB}/{nid}/sources").json()[0]
+    assert after["state"] == "ready" and "Interrupted" in after["error"]
+    assert after["version_count"] == 0  # the version created for that refresh was dropped
+
+
+def test_earlier_versions_can_be_listed_and_read(make_client, tmp_path):
+    client, _fake, web, nid, source = imported(make_client, tmp_path)
+    web.pages[URL] = page("Edition Two", body="The second text about ships. " * 12)
+    client.post(f"{NB}/{nid}/sources/{source['id']}/refresh")
+    wait_idle(client, nid)
+    web.pages[URL] = page("Edition Three", body="The third text about tides. " * 12)
+    client.post(f"{NB}/{nid}/sources/{source['id']}/refresh")
+    wait_idle(client, nid)
+    base = f"{NB}/{nid}/sources/{source['id']}"
+    versions = client.get(f"{base}/versions").json()
+    assert [v["version"] for v in versions] == [1, 2]
+    assert all(v["fetched_at"] and v["char_count"] > 0 for v in versions)
+    assert "original text about harbors" in client.get(f"{base}/versions/1/content").json()["text"]
+    assert "second text about ships" in client.get(f"{base}/versions/2/content").json()["text"]
+    assert "third text about tides" in client.get(f"{base}/content").json()["text"]  # current
+    assert client.get(f"{base}/versions/3/content").status_code == 404
+    assert client.get(f"{NB}/{nid}/sources/nope/versions").status_code == 404

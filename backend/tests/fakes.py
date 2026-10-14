@@ -1,12 +1,17 @@
 """Fakes for the outside world: web fetching, YouTube, and the search provider."""
 
 import asyncio
+import math
+import time
 from pathlib import Path
+
+import numpy as np
 
 from app.ingest import safe_fetch
 from app.ingest.discover import SearchHit
 from app.ingest.services import Services
 from app.ingest.youtube import CaptionLine, Captions, VideoInfo
+from app.speech.tts import create_engine
 
 LONG_TEXT = " ".join(
     f"This sentence number {i} explains something useful about the Port of Valdoria."
@@ -87,8 +92,28 @@ class FakeProvider:
         return self.hits[:limit]
 
 
+class FakeTTS:
+    """A tone per turn, as long as the text is: 10 ms per character, 220 Hz for voice "...a"."""
+
+    sample_rate = 24000
+
+    def __init__(self, seconds_per_char: float = 0.01, delay: float = 0.0):
+        self.seconds_per_char = seconds_per_char
+        self.delay = delay
+        self.calls: list[tuple[str, str]] = []
+
+    def synthesize(self, text: str, voice: str) -> np.ndarray:
+        self.calls.append((text, voice))
+        if self.delay:
+            time.sleep(self.delay)
+        count = int(self.sample_rate * max(0.2, len(text) * self.seconds_per_char))
+        t = np.arange(count) / self.sample_rate
+        tone = 220 if voice.endswith("a") else 330
+        return (0.3 * np.sin(2 * math.pi * tone * t)).astype(np.float32)
+
+
 def make_services(
-    tmp_path: Path, web: FakeWeb | None = None, youtube=None, provider=None
+    tmp_path: Path, web: FakeWeb | None = None, youtube=None, provider=None, tts=None
 ) -> Services:
     web = web or FakeWeb()
 
@@ -101,6 +126,7 @@ def make_services(
         check_url=accept,
         youtube=youtube or FakeYouTube(),
         search_provider=lambda settings: provider,
+        tts=(lambda settings, models_dir: tts) if tts is not None else create_engine,
     )
 
 

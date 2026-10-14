@@ -32,7 +32,8 @@ from app.ingest.services import Services
 from app.jobs.runner import JobRunner
 from app.llm.base import LLMClient
 from app.llm.openai_compat import OpenAICompatClient
-from app.speech.models import ModelDownloads, download_faster_whisper
+from app.speech import tts as tts_module
+from app.speech.models import ModelDownloads, download_faster_whisper, download_tts
 
 
 def default_llm_factory(settings: dict) -> LLMClient:
@@ -46,6 +47,7 @@ def create_app(
     frontend_dist: Path = FRONTEND_DIST,
     services: Services | None = None,
     model_downloader=download_faster_whisper,
+    tts_downloader=download_tts,
 ) -> FastAPI:
     config = config or load_runtime_config()
     token = token or os.environ.get("LNB_TOKEN") or new_token()
@@ -84,6 +86,15 @@ def create_app(
     app.state.chat_stops = {}
     app.state.services = services
     app.state.model_downloads = ModelDownloads(services.models_dir, model_downloader)
+    app.state.tts_downloads = ModelDownloads(
+        services.models_dir,
+        tts_downloader,
+        installed=lambda root, repo, extra: tts_module.is_installed(
+            root, repo, extra.get("voices", [])
+        ),
+        dest=tts_module.tts_dir,
+        staged=False,
+    )
 
     app.add_middleware(SecurityMiddleware, token=token, allowed_origins=config.allowed_origins)
 

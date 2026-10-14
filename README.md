@@ -2,14 +2,22 @@
 
 Local, source-grounded research notebook. See `PROJECT_SPEC.md` for the full specification.
 
-**Status:** M5 implemented (remaining source types and the web). In addition to everything in M4 you
-can add **web pages** (several addresses at once; pages are saved and work offline; **Refresh from
+**Status:** M6 implemented (audio overview). In addition to everything in M5 you can make an
+**audio overview**: a two-host spoken discussion of your sources (length Short ~5 / Default ~10 /
+Long ~20 minutes; format Deep dive, Brief, Debate or Critique; optional focus) with a player (play,
+pause, seek, ±15 s, speed 0.75×–2×), a transcript that follows the audio and jumps to a turn when
+clicked, an editable script (text, speaker, order, delete) and **Re-synthesize audio** that does not
+regenerate the script. It needs a text-to-speech model and two voices in Settings (a Kokoro ONNX
+model from Hugging Face, downloaded on request), `espeak-ng` and ffmpeg on `PATH`. A web source
+whose **Refresh from web** fails keeps its previous capture and shows the error, and the source
+viewer has a **Version** picker for earlier captures.
+
+From M5: you can add **web pages** (several addresses at once; pages are saved and work offline; **Refresh from
 web** keeps the earlier capture), **YouTube videos** (captions; optionally local transcription of
 videos without captions), **HTML and EPUB files**, **images and scanned PDF pages** (read with
 Tesseract OCR), and **audio files** (transcribed locally), and **Discover** sources on a topic through
 your own SearXNG search server. Citations to audio and video show a timestamp, and cited video
-passages have an "Open in browser at this time" link. The audio overview (M6) and export/import
-(M7) are still to come.
+passages have an "Open in browser at this time" link. Export/import (M7) is still to come.
 
 Ingesting a source calls your model server twice (embeddings, then a short source guide), so a chat
 model and an embedding model must be set in Settings first. Without them a source shows as failed
@@ -20,7 +28,7 @@ with a **Retry** button.
 - [uv](https://docs.astral.sh/uv/) (manages Python 3.11+)
 - Node.js 20+ and npm
 - [Ollama](https://ollama.com) (or another OpenAI-compatible local server)
-- Tesseract and ffmpeg on `PATH` (checked by the setup wizard; needed from later milestones)
+- Tesseract, ffmpeg and espeak-ng on `PATH` (checked by the setup wizard; espeak-ng is only needed for audio overviews)
 
 ## Run
 

@@ -67,6 +67,11 @@ async def run_checks(settings: dict, llm: LLMClient) -> list[Check]:
     for exe, label, fix in (
         ("tesseract", "Tesseract (OCR) installed", "Install Tesseract and add it to PATH."),
         ("ffmpeg", "ffmpeg installed", "Install ffmpeg and add it to PATH."),
+        (
+            "espeak-ng",
+            "espeak-ng installed (for audio overviews)",
+            "Install espeak-ng and add it to PATH.",
+        ),
     ):
         path = shutil.which(exe)
         checks.append(

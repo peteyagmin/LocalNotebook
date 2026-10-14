@@ -4,6 +4,7 @@ export interface Settings {
   chat_model: string
   embedding_model: string
   stt_model: string
+  tts_model: string
   tts_voice_a: string
   tts_voice_b: string
   llm_base_url: string
@@ -142,7 +143,37 @@ export interface Note {
 }
 
 export type ArtifactKind =
-  'summary' | 'briefing' | 'study_guide' | 'faq' | 'timeline' | 'mind_map' | 'flashcards'
+  | 'summary'
+  | 'briefing'
+  | 'study_guide'
+  | 'faq'
+  | 'timeline'
+  | 'mind_map'
+  | 'flashcards'
+  | 'audio_overview'
+
+export type AudioLength = 'short' | 'default' | 'long'
+export type AudioFormat = 'deep_dive' | 'brief' | 'debate' | 'critique'
+export interface AudioOptions {
+  length: AudioLength
+  format: AudioFormat
+}
+
+export interface AudioTurn {
+  speaker: 'A' | 'B'
+  text: string
+  chunk_ids: string[]
+  start: number | null
+  end: number | null
+}
+
+export interface AudioTranscript {
+  title: string
+  options: AudioOptions
+  turns: AudioTurn[]
+  duration: number | null
+  outdated: boolean
+}
 
 export interface TimelineData {
   events: {
@@ -172,7 +203,8 @@ export interface FlashcardsData {
   }[]
 }
 
-export type ArtifactFormat = 'md' | 'docx' | 'pdf' | 'json' | 'png' | 'csv-flashcards' | 'csv-quiz'
+export type ArtifactFormat =
+  'md' | 'docx' | 'pdf' | 'json' | 'png' | 'csv-flashcards' | 'csv-quiz' | 'mp3'
 export type ArtifactState = 'queued' | 'running' | 'ready' | 'failed' | 'cancelled'
 
 export interface Artifact {
@@ -184,6 +216,7 @@ export interface Artifact {
   progress: number
   error: string | null
   focus: string
+  options: AudioOptions | null
   has_content: boolean
   stale: boolean
   created_at: string
@@ -191,9 +224,9 @@ export interface Artifact {
 }
 
 export interface ArtifactDetail extends Artifact {
-  format: 'markdown' | 'json'
+  format: 'markdown' | 'json' | 'audio'
   content: string
-  data: TimelineData | { root: MindNodeData } | FlashcardsData | null
+  data: TimelineData | { root: MindNodeData } | FlashcardsData | AudioTranscript | null
   citations: Citation[]
 }
 
@@ -209,8 +242,28 @@ export interface SearchResult {
   char_end: number
 }
 
+export interface TtsStatus {
+  model: string
+  voices: string[]
+  configured: boolean
+  installed: boolean
+  downloads_allowed: boolean
+  espeak: boolean
+  ffmpeg: boolean
+  state: 'idle' | 'downloading' | 'error'
+  progress?: number | null
+  error?: string | null
+}
+
+export interface SourceVersion {
+  version: number
+  fetched_at: string | null
+  char_count: number | null
+}
+
 export interface Capabilities {
   ocr: boolean
+  audio_overview: { ready: boolean; problems: string[] }
   stt: { configured: boolean; installed: boolean }
   web_import: boolean
   discover: { allowed: boolean; configured: boolean }
@@ -388,12 +441,29 @@ export const api = {
   listArtifacts: (id: string) => request<Artifact[]>('GET', `${nb(id)}/artifacts`),
   streamArtifacts: (id: string, onEvent: (a: Artifact[]) => void, signal: AbortSignal) =>
     stream<Artifact[]>(`${nb(id)}/artifacts/stream`, onEvent, signal),
-  createArtifact: (id: string, kind: ArtifactKind, focus: string) =>
-    request<ArtifactDetail>('POST', `${nb(id)}/artifacts`, { kind, focus }),
+  createArtifact: (id: string, kind: ArtifactKind, focus: string, options?: AudioOptions) =>
+    request<ArtifactDetail>('POST', `${nb(id)}/artifacts`, { kind, focus, options }),
   getArtifact: (id: string, artifactId: string) =>
     request<ArtifactDetail>('GET', `${nb(id)}/artifacts/${artifactId}`),
-  regenerateArtifact: (id: string, artifactId: string, focus?: string) =>
-    request<ArtifactDetail>('POST', `${nb(id)}/artifacts/${artifactId}/regenerate`, { focus }),
+  regenerateArtifact: (id: string, artifactId: string, focus?: string, options?: AudioOptions) =>
+    request<ArtifactDetail>('POST', `${nb(id)}/artifacts/${artifactId}/regenerate`, {
+      focus,
+      options,
+    }),
+  saveScript: (
+    id: string,
+    artifactId: string,
+    turns: { speaker: string; text: string; chunk_ids: string[] }[],
+  ) => request<ArtifactDetail>('PUT', `${nb(id)}/artifacts/${artifactId}/script`, { turns }),
+  resynthesize: (id: string, artifactId: string) =>
+    request<ArtifactDetail>('POST', `${nb(id)}/artifacts/${artifactId}/resynthesize`),
+  getArtifactAudio: async (id: string, artifactId: string) => {
+    const resp = await fetch(`/api/v1${nb(id)}/artifacts/${artifactId}/audio`, {
+      headers: { Authorization: `Bearer ${token()}` },
+    })
+    await throwIfError(resp)
+    return resp.blob()
+  },
   cancelArtifact: (id: string, artifactId: string) =>
     request<void>('POST', `${nb(id)}/artifacts/${artifactId}/cancel`),
   deleteArtifact: (id: string, artifactId: string) =>
@@ -415,6 +485,12 @@ export const api = {
   discover: (id: string, topic: string) =>
     request<{ suggestions: DiscoverSuggestion[] }>('POST', `${nb(id)}/discover`, { topic }),
   getCapabilities: () => request<Capabilities>('GET', '/capabilities'),
+  getTtsStatus: () => request<TtsStatus>('GET', '/speech/tts'),
+  startTtsDownload: () => request<TtsStatus>('POST', '/speech/tts/download', { confirm: true }),
+  listVersions: (id: string, sourceId: string) =>
+    request<SourceVersion[]>('GET', `${nb(id)}/sources/${sourceId}/versions`),
+  getVersionContent: (id: string, sourceId: string, version: number) =>
+    request<SourceContent>('GET', `${nb(id)}/sources/${sourceId}/versions/${version}/content`),
   getSttStatus: () => request<SttStatus>('GET', '/speech/stt'),
   startSttDownload: () => request<SttStatus>('POST', '/speech/stt/download', { confirm: true }),
   getSourceContent: (id: string, sourceId: string) =>

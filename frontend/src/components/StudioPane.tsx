@@ -1,5 +1,14 @@
 import { useState } from 'react'
-import { api, type Artifact, type ArtifactKind, type NoteSummary, type Source } from '../api'
+import {
+  api,
+  type Artifact,
+  type ArtifactKind,
+  type AudioOptions,
+  type NoteSummary,
+  type Source,
+} from '../api'
+import { useCapabilities } from '../hooks/useCapabilities'
+import { AudioOptionsFields } from './AudioOptionsFields'
 import type { StudioTarget } from './studio'
 
 const KINDS: { kind: ArtifactKind; label: string }[] = [
@@ -39,6 +48,13 @@ export function StudioPane({
   const [message, setMessage] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
+  const [audioOptions, setAudioOptions] = useState<AudioOptions>({
+    length: 'default',
+    format: 'deep_dive',
+  })
+  const { capabilities } = useCapabilities()
+  const audioProblems =
+    capabilities?.audio_overview?.ready === false ? capabilities.audio_overview.problems : []
 
   async function run(action: () => Promise<void>) {
     setError(null)
@@ -105,6 +121,43 @@ export function StudioPane({
             </button>
           ))}
         </div>
+      </section>
+
+      <section
+        aria-label="Audio overview"
+        className="space-y-2 rounded border border-neutral-200 p-2 dark:border-neutral-800"
+      >
+        <h3 className="text-xs font-semibold uppercase text-neutral-500">Audio overview</h3>
+        <AudioOptionsFields value={audioOptions} onChange={setAudioOptions} />
+        <button
+          type="button"
+          className="w-full rounded bg-blue-600 px-2 py-1.5 text-sm text-white disabled:opacity-50"
+          disabled={audioProblems.length > 0}
+          onClick={() =>
+            void run(async () => {
+              const created = await api.createArtifact(
+                notebookId,
+                'audio_overview',
+                focus,
+                audioOptions,
+              )
+              await refreshArtifacts()
+              onOpen({ type: 'artifact', id: created.id })
+            })
+          }
+        >
+          Generate audio overview
+        </button>
+        {audioProblems.length > 0 && (
+          <ul
+            aria-label="What is missing"
+            className="list-disc pl-5 text-xs text-neutral-600 dark:text-neutral-400"
+          >
+            {audioProblems.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {error && (

@@ -1,0 +1,9 @@
+Plan a spoken audio overview of the material. It will last about $minutes minutes, so plan $sections sections. The style is: $format_name.
+
+$format_instructions
+
+Respond with a JSON object of exactly this shape:
+{"title": "a short title for the episode", "sections": [{"heading": "what this section covers", "points": ["a point to make", "another point"], "sources": [1, 2]}]}
+
+- "points" are the specific things the hosts will say in the section, in the order they will say them.
+- "sources" are the passage numbers that support the section.

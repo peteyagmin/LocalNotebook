@@ -316,6 +316,11 @@ export function SourcesPane({
                   </div>
                 </div>
               )}
+              {s.state === 'ready' && s.error && (
+                <p role="status" className="mt-1 rounded bg-amber-100 p-1 text-xs text-amber-950">
+                  {s.error} The previous capture is still in use.
+                </p>
+              )}
               {s.state === 'failed' && (
                 <div className="mt-1 text-xs">
                   <p role="alert" className="text-red-600">

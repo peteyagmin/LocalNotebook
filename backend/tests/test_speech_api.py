@@ -140,6 +140,7 @@ def test_capabilities_say_what_is_available(make_client, monkeypatch):
     assert caps == {
         "ocr": False,
         "stt": {"configured": False, "installed": False},
+        "audio_overview": caps["audio_overview"],
         "web_import": True,
         "discover": {"allowed": True, "configured": False},
     }

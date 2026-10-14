@@ -3,6 +3,7 @@
 chat_model = ""
 embedding_model = ""
 stt_model = ""
+tts_model = ""
 tts_voice_a = ""
 tts_voice_b = ""
 llm_base_url = "http://127.0.0.1:11434/v1"

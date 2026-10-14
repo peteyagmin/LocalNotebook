@@ -5,9 +5,8 @@ edit it except to tick milestone boxes in §12. Stop after each milestone for ow
 
 ## Current status
 
-M0-M4 accepted. M5 (remaining source types, OCR, web import, YouTube, Discover) implemented,
-awaiting owner acceptance. Includes the owner-approved short quiz for small notebooks. Next: M6
-(audio overview: TTS, ffmpeg).
+M0-M5 accepted. M6 (audio overview, failed-refresh handling, source version picker) implemented,
+awaiting owner acceptance. Next: M7 (export/import).
 
 ## Architecture (as built)
 
@@ -157,6 +156,30 @@ awaiting owner acceptance. Includes the owner-approved short quiz for small note
 - Frontend: `AddSourceDialogs`, `useCapabilities`, viewer timestamps and YouTube links
   (`&t=<seconds>s`), `describeLocation` (shared by chips and search), grouped Settings with the
   speech-model download and progress.
+
+## M6 additions
+
+- Audio overview is artifact kind `audio_overview` (`studio/audio.py`, `studio/generate.py::_generate_audio`).
+  Pipeline: outline (`audio_outline.txt`) -> per-section script JSON (`audio_script.txt` + one of
+  `audio_format_*.txt`; turns `{speaker, text, chunk_ids}`) -> TTS per turn -> assembly -> `audio.mp3`
+  + `transcript.json` in `artifacts/<id>/`. Lengths: short (5 min, 3 sections), default (10, 5), long
+  (20, 8) at 150 words/min. Options live in `artifacts.options` (migration 0005).
+- Pauses: 0.25 s same speaker, 0.40 s speaker change, 0.50 s after a question; all within 250-500 ms.
+  Loudness: ffmpeg `loudnorm` (I=-16), MP3 via libmp3lame. `spoken_text()` strips `[n]` and `**`.
+- Script edits (`PUT /artifacts/{id}/script`, `service.save_script`) keep times of unchanged turns and
+  set `outdated`; `POST /artifacts/{id}/resynthesize` (job kind `audio_resynth`) reuses the script.
+- TTS (`speech/tts.py`): Kokoro ONNX via onnxruntime; phonemes from the external `espeak-ng` program
+  (subprocess, so no GPL code is linked). Model files under `models/tts/<repo>/`: `tokenizer.json`,
+  `onnx/model.onnx`, `voices/<voice>.bin`. Settings `tts_model`, `tts_voice_a`, `tts_voice_b`. The real
+  engine was not run against real model files in the development sandbox (no internet); tests use
+  `LNB_TTS_FACTORY=module:function` / `Services.tts` fakes. `GET /capabilities` has `audio_overview`
+  `{ready, problems[]}`, which the Studio shows as "What is missing".
+- Refresh (M5 follow-up): staged commit. `ingest/pipeline.py` writes new files as `*.new`, commits the
+  index in one transaction, then renames. A failed refresh calls `service.settle_failure`: the source
+  returns to `ready` with a "The refresh failed: ..." error and the discarded archive is removed.
+  Versions: `GET /sources/{id}/versions[/{n}/content]`; the viewer has a Version picker.
+- Frontend: `AudioPlayer` (audio fetched with the token, played from a blob URL), `AudioOverviewView`,
+  `ScriptEditor`, `AudioOptionsFields`; tests mock `HTMLMediaElement.play/pause`.
 
 ## Conventions
 

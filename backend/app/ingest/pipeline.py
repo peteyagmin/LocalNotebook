@@ -6,14 +6,17 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import shutil
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from pydantic import BaseModel, field_validator
 
 from app.core.ids import new_id, now_iso
 from app.core.notebooks import NotebookStore, NotFound
+from app.ingest import service
 from app.ingest.chunker import Chunk, chunk_text
 from app.ingest.extract import build_extracted, read_extracted, write_extracted
 from app.ingest.parsers import Block, ParseError, ParseResult
@@ -83,8 +86,16 @@ def build_chunks(extracted: dict) -> list[Chunk]:
     return chunk_text(extracted["text"], extracted["segments"])
 
 
-def write_index(conn, source_id: str, chunks: list[Chunk], vectors: list[list[float]]) -> list[str]:
-    """Replace a source's chunks, FTS rows and vectors in one transaction (DR-6)."""
+def write_index(
+    conn,
+    source_id: str,
+    chunks: list[Chunk],
+    vectors: list[list[float]],
+    source_fields: dict | None = None,
+) -> list[str]:
+    """Replace a source's chunks, FTS rows and vectors in one transaction (DR-6). With
+    `source_fields`, the source row is updated in that same transaction, so a source is never
+    half old and half new."""
     index = VectorIndex(conn)
     # Take the write lock first: two sources finishing together must not both try to create the
     # vector table.
@@ -118,6 +129,12 @@ def write_index(conn, source_id: str, chunks: list[Chunk], vectors: list[list[fl
         if vectors:
             index.ensure(len(vectors[0]))
             index.add(ids, vectors)
+        if source_fields:
+            fields = {**source_fields, "updated_at": now_iso()}
+            assignments = ", ".join(f"{k} = ?" for k in fields)
+            conn.execute(
+                f"UPDATE sources SET {assignments} WHERE id = ?", (*fields.values(), source_id)
+            )
     return ids
 
 
@@ -177,27 +194,43 @@ def _meta(source: dict) -> dict:
     return json.loads(source["meta"]) if source.get("meta") else {}
 
 
-async def _acquire_web(
-    store, notebook_id, source, settings, services, stage, record
-) -> ParseResult:
-    """Fetch the page (once; kept as original.html) and extract its main content (FR-2.9)."""
+@dataclass
+class Acquired:
+    """What was read from the source, plus changes to apply only when everything has worked."""
+
+    parsed: ParseResult
+    fields: dict = field(default_factory=dict)  # source columns to set at commit
+    staged_original: tuple[Path, Path] | None = None  # (temporary file, final file)
+
+
+async def _acquire_web(store, notebook_id, source, settings, services, stage) -> Acquired:
+    """Fetch the page (once; kept as original.html) and extract its main content (FR-2.9). A
+    refresh fetches into a temporary file; it replaces the old capture only at commit."""
     if not settings["allow_web_import"]:
         raise IngestError("Importing from the web is turned off in Settings.")
-    path = store.source_dir(notebook_id, source["id"]) / "original.html"
-    if not path.exists():
+    final = store.source_dir(notebook_id, source["id"]) / "original.html"
+    meta = {k: v for k, v in _meta(source).items() if k != "refreshing"}
+    fields: dict = {}
+    staged = None
+    path = final
+    if _meta(source).get("refreshing") or not final.exists():
         stage("Fetching the page", 0.05)
         result = await services.fetch(source["url"])
+        path = final.with_name("original.html.new")
         path.write_bytes(result.content)
-        record(fetched_at=now_iso())
+        staged = (path, final)
+        fields["fetched_at"] = now_iso()
     parsed = await asyncio.to_thread(run_parse, path, "web")
     if parsed.title:
-        record(name=parsed.title[:300], meta=json.dumps({**_meta(source), "title": parsed.title}))
-    return parsed
+        fields["name"] = parsed.title[:300]
+        meta["title"] = parsed.title
+    fields["meta"] = json.dumps(meta)
+    return Acquired(parsed, fields, staged)
 
 
 async def _acquire_youtube(
-    store, notebook_id, source, settings, services, stage, record, check
-) -> ParseResult:
+    store, notebook_id, source, settings, services, stage, check
+) -> Acquired:
     """Captions if the video has them; otherwise local transcription, only if the user allowed
     it (FR-2.10)."""
     if not settings["allow_web_import"]:
@@ -241,22 +274,19 @@ async def _acquire_youtube(
         transcript_source = "transcription"
     else:
         raise IngestError(NO_CAPTIONS_MESSAGE)
-    record(
-        name=info.title[:300],
-        fetched_at=now_iso(),
-        meta=json.dumps(
-            {
-                **_meta(source),
-                "video_id": video_id,
-                "title": info.title,
-                "channel": info.channel,
-                "description": info.description,
-                "duration": info.duration,
-                "transcript": transcript_source,
-            }
-        ),
+    meta = {k: v for k, v in _meta(source).items() if k != "refreshing"}
+    meta.update(
+        video_id=video_id,
+        title=info.title,
+        channel=info.channel,
+        description=info.description,
+        duration=info.duration,
+        transcript=transcript_source,
     )
-    return parsed
+    return Acquired(
+        parsed,
+        {"name": info.title[:300], "fetched_at": now_iso(), "meta": json.dumps(meta)},
+    )
 
 
 async def run_ingest(
@@ -297,37 +327,28 @@ async def run_ingest(
         stage("Reading file", 0.05)
         services = services or Services(models_dir=store.data_root / "models")
 
-        def record(**fields) -> None:
-            _update_source(store, notebook_id, source_id, **fields)
-
         if source["type"] == "web":
-            parsed = await _acquire_web(
-                store, notebook_id, source, settings, services, stage, record
-            )
+            acquired = await _acquire_web(store, notebook_id, source, settings, services, stage)
         elif source["type"] == "youtube":
-            parsed = await _acquire_youtube(
-                store, notebook_id, source, settings, services, stage, record, check
+            acquired = await _acquire_youtube(
+                store, notebook_id, source, settings, services, stage, check
             )
         else:
-            parsed = await asyncio.to_thread(
-                run_parse,
-                original_path(store, notebook_id, source),
-                source["type"],
-                None,
-                2 * 1024**3,
-                {"stt_model": settings["stt_model"], "models_dir": str(services.models_dir)},
+            acquired = Acquired(
+                await asyncio.to_thread(
+                    run_parse,
+                    original_path(store, notebook_id, source),
+                    source["type"],
+                    None,
+                    2 * 1024**3,
+                    {"stt_model": settings["stt_model"], "models_dir": str(services.models_dir)},
+                )
             )
         check()
-        extracted = build_extracted(parsed)
-        write_extracted(extracted_path(store, notebook_id, source_id), extracted)
-        _update_source(
-            store,
-            notebook_id,
-            source_id,
-            char_count=len(extracted["text"]),
-            page_count=extracted["page_count"],
-        )
+        extracted = build_extracted(acquired.parsed)
 
+        # Nothing below changes the source until the commit at the end, so a failure while
+        # refreshing leaves the previous capture exactly as it was.
         stage("Splitting into passages", 0.3)
         chunks = build_chunks(extracted)
 
@@ -340,15 +361,6 @@ async def run_ingest(
             check_cancelled=check,
         )
         check()
-
-        def _write() -> None:
-            conn = store.open(notebook_id)
-            try:
-                write_index(conn, source_id, chunks, vectors)
-            finally:
-                conn.close()
-
-        await asyncio.to_thread(_write)
 
         stage("Writing source guide", 0.9)
         guide = await generate_json(
@@ -365,16 +377,36 @@ async def run_ingest(
             SourceGuide,
         )
         check()
-        _update_source(
-            store,
-            notebook_id,
-            source_id,
-            state="ready",
-            stage=None,
-            progress=1.0,
-            error=None,
-            guide=guide.model_dump_json(),
-        )
+
+        final_extracted = extracted_path(store, notebook_id, source_id)
+        staged_extracted = final_extracted.with_name("extracted.json.new")
+        write_extracted(staged_extracted, extracted)
+        fields = {
+            **acquired.fields,
+            "char_count": len(extracted["text"]),
+            "page_count": extracted["page_count"],
+            "state": "ready",
+            "stage": None,
+            "progress": 1.0,
+            "error": None,
+            "guide": guide.model_dump_json(),
+        }
+        if "meta" not in fields:
+            fields["meta"] = json.dumps(
+                {k: v for k, v in _meta(source).items() if k != "refreshing"}
+            )
+
+        def _commit() -> None:
+            conn = store.open(notebook_id)
+            try:
+                write_index(conn, source_id, chunks, vectors, fields)
+            finally:
+                conn.close()
+
+        await asyncio.to_thread(_commit)
+        os.replace(staged_extracted, final_extracted)
+        if acquired.staged_original:
+            os.replace(*acquired.staged_original)
         return None
     except (Cancelled, NotFound):
         return "Cancelled."
@@ -392,7 +424,11 @@ async def run_ingest(
         log.exception("Ingestion failed for source %s", source_id)
         message = f"Unexpected error ({e.__class__.__name__}). See the app log for details."
     try:
-        _update_source(store, notebook_id, source_id, state="failed", stage=None, error=message)
+        conn = store.open(notebook_id)
+        try:
+            service.settle_failure(store, notebook_id, conn, source_id, message)
+        finally:
+            conn.close()
     except Exception:  # notebook or source was deleted meanwhile
         log.debug("Could not record failure for %s", source_id)
     return message

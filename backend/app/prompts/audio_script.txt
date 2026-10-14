@@ -1,0 +1,17 @@
+Write the script for one section of an audio overview. The overall style is: $format_name.
+
+$format_instructions
+
+The section is "$heading" (section $number of $total).
+Points to cover, in order:
+$points
+
+$position_note
+$previous
+
+Write about $words words of dialogue between Host A and Host B.
+
+Respond with a JSON object of exactly this shape:
+{"turns": [{"speaker": "A", "text": "What Host A says.", "sources": [1]}, {"speaker": "B", "text": "What Host B says.", "sources": [2]}]}
+
+- "speaker" is "A" or "B".

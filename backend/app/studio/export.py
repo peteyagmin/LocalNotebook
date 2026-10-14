@@ -225,6 +225,7 @@ ALLOWED_FORMATS = {
     "timeline": ["json", "md", "docx", "pdf"],
     "mind_map": ["png", "json"],
     "flashcards": ["csv-flashcards", "csv-quiz", "json"],
+    "audio_overview": ["mp3"],
 }
 
 

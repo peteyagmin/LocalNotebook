@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { api, type ConnectionResult, type Settings, type SttStatus } from '../api'
+import { api, type ConnectionResult, type Settings, type SttStatus, type TtsStatus } from '../api'
 
 interface SettingsPageProps {
   settings: Settings
@@ -16,6 +16,7 @@ type TextKey =
   | 'chat_model'
   | 'embedding_model'
   | 'stt_model'
+  | 'tts_model'
   | 'tts_voice_a'
   | 'tts_voice_b'
   | 'searxng_url'
@@ -30,6 +31,7 @@ const EDITABLE: EditableKey[] = [
   'chat_model',
   'embedding_model',
   'stt_model',
+  'tts_model',
   'tts_voice_a',
   'tts_voice_b',
   'max_sources_per_notebook',
@@ -145,20 +147,33 @@ export function SettingsPage({ settings, onSettingsChange, onClose, notice }: Se
       <Section title="Models">
         {text('chat_model', 'Chat model')}
         {text('embedding_model', 'Embedding model')}
-        {text('tts_voice_a', 'Voice for Host A')}
-        {text('tts_voice_b', 'Voice for Host B')}
         {number('context_window_tokens', 'Model context window (tokens)')}
         {number('retrieval_top_k', 'Passages used per answer')}
       </Section>
 
       <Section title="Speech to text">
         {text('stt_model', 'Speech-to-text model')}
-        <SpeechModel saved={settings.stt_model} />
+        <ModelDownload kind="stt" saved={settings.stt_model} />
         {check(
           'transcribe_uncaptioned_videos',
           'Transcribe videos without captions',
           'When a YouTube video has no captions, its audio is downloaded, transcribed on this computer, and then deleted. You are responsible for complying with the platform’s terms of service.',
         )}
+      </Section>
+
+      <Section title="Text to speech">
+        {text(
+          'tts_model',
+          'Text-to-speech model',
+          'text',
+          'Used for audio overviews. The model and the two voices below are downloaded together.',
+        )}
+        {text('tts_voice_a', 'Voice for Host A')}
+        {text('tts_voice_b', 'Voice for Host B')}
+        <ModelDownload
+          kind="tts"
+          saved={`${settings.tts_model}|${settings.tts_voice_a}|${settings.tts_voice_b}`}
+        />
       </Section>
 
       <Section title="Limits">
@@ -225,18 +240,22 @@ export function SettingsPage({ settings, onSettingsChange, onClose, notice }: Se
   )
 }
 
-/** Install state of the speech-to-text model, with a confirmed download and progress (FR-8.2). */
-function SpeechModel({ saved }: { saved: string }) {
-  const [status, setStatus] = useState<SttStatus | null>(null)
+type ModelStatus = SttStatus | TtsStatus
+
+/** Install state of a speech model, with a confirmed download and progress (FR-8.2). */
+function ModelDownload({ kind, saved }: { kind: 'stt' | 'tts'; saved: string }) {
+  const [status, setStatus] = useState<ModelStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const downloading = status?.state === 'downloading'
+  const load = kind === 'stt' ? api.getSttStatus : api.getTtsStatus
+  const start = kind === 'stt' ? api.startSttDownload : api.startTtsDownload
+  const noun = kind === 'stt' ? 'speech-to-text model' : 'text-to-speech model and voices'
 
   useEffect(() => {
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | undefined
     const poll = () =>
-      api
-        .getSttStatus()
+      load()
         .then((s) => {
           if (cancelled) return
           setStatus(s)
@@ -248,47 +267,67 @@ function SpeechModel({ saved }: { saved: string }) {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [saved, downloading])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saved, downloading, kind])
 
   async function download() {
     if (
-      !window.confirm(
-        `Download the speech-to-text model "${saved}" from the internet? It can be large.`,
-      )
+      !window.confirm(`Download the ${noun} “${status?.model}” from the internet? It can be large.`)
     )
       return
     setError(null)
     try {
-      setStatus(await api.startSttDownload())
+      setStatus(await start())
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
   }
 
   if (!status) return null
+  const tts = kind === 'tts' ? (status as TtsStatus) : null
   return (
-    <div className="space-y-1 text-sm" aria-label="Speech model status" role="group">
+    <div
+      className="space-y-1 text-sm"
+      aria-label={`${kind === 'stt' ? 'Speech' : 'Voice'} model status`}
+      role="group"
+    >
       {!status.configured && (
         <p className="text-neutral-500">
-          Enter a model name and save to use audio and video transcription.
+          {kind === 'stt'
+            ? 'Enter a model name and save to use audio and video transcription.'
+            : 'Enter a model and both voices, then save, to make audio overviews.'}
         </p>
       )}
-      {status.configured && status.installed && <p>The model “{status.model}” is installed.</p>}
+      {status.configured && status.installed && (
+        <p>
+          The {noun} “{status.model}” {kind === 'tts' ? 'are' : 'is'} installed.
+        </p>
+      )}
       {status.configured && !status.installed && status.state !== 'downloading' && (
         <div className="space-y-1">
-          <p>The model “{status.model}” is not installed.</p>
+          <p>
+            The {noun} “{status.model}” {kind === 'tts' ? 'are' : 'is'} not installed.
+          </p>
           <button
             type="button"
             className="rounded border border-neutral-300 px-2 py-1 text-xs hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
             disabled={!status.downloads_allowed}
             onClick={() => void download()}
           >
-            Download model
+            {kind === 'stt' ? 'Download model' : 'Download model and voices'}
           </button>
           {!status.downloads_allowed && (
             <p className="text-xs text-neutral-500">Model downloads are turned off (Network).</p>
           )}
         </div>
+      )}
+      {tts && !tts.espeak && (
+        <p className="text-xs text-neutral-500">
+          espeak-ng is not installed. It turns text into sounds; install it and add it to PATH.
+        </p>
+      )}
+      {tts && !tts.ffmpeg && (
+        <p className="text-xs text-neutral-500">ffmpeg is not installed. It makes the MP3.</p>
       )}
       {status.state === 'downloading' && (
         <div>

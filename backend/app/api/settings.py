@@ -19,6 +19,7 @@ class SettingsUpdate(BaseModel):
     chat_model: str | None = None
     embedding_model: str | None = None
     stt_model: str | None = None
+    tts_model: str | None = None
     tts_voice_a: str | None = None
     tts_voice_b: str | None = None
     llm_base_url: str | None = None

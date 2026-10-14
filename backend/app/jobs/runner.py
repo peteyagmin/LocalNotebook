@@ -10,10 +10,11 @@ from app.core import db
 from app.core.ids import new_id, now_iso
 from app.core.notebooks import NotebookStore, NotFound
 from app.ingest.pipeline import run_ingest
+from app.ingest.service import settle_failure
 from app.ingest.services import Services
 from app.llm.base import LLMClient, LLMError
 from app.notes.service import embed_note
-from app.studio.generate import run_generation
+from app.studio.generate import run_generation, run_resynthesis
 
 log = logging.getLogger(__name__)
 
@@ -58,11 +59,16 @@ class JobRunner:
                         "WHERE state IN ('queued','running')",
                         (now_iso(),),
                     )
-                    conn.execute(
-                        "UPDATE sources SET state='failed', stage=NULL, error=?, updated_at=? "
-                        "WHERE state IN ('queued','processing')",
-                        (INTERRUPTED_MESSAGE, now_iso()),
-                    )
+                    unfinished = [
+                        r["id"]
+                        for r in conn.execute(
+                            "SELECT id FROM sources WHERE state IN ('queued','processing')"
+                        )
+                    ]
+                for source_id in unfinished:
+                    # (a refresh that was interrupted keeps the previous capture)
+                    settle_failure(self.store, notebook_id, conn, source_id, INTERRUPTED_MESSAGE)
+                with conn:
                     # An interrupted regeneration keeps its previous version (state ready).
                     conn.execute(
                         "UPDATE artifacts SET state = CASE WHEN has_content = 1 THEN 'ready' "
@@ -126,6 +132,23 @@ class JobRunner:
         finally:
             conn.close()
         self._queue.put_nowait((notebook_id, job_id, "artifact", artifact_id))
+        return job_id
+
+    def submit_resynthesis(self, notebook_id: str, artifact_id: str) -> str:
+        """Queue rebuilding an audio overview's audio from its script (FR-6.4)."""
+        self._artifact_cancelled_early.discard(artifact_id)
+        conn = self.store.open(notebook_id)
+        try:
+            with conn:
+                job_id = self._insert_job(conn, "audio_resynth", artifact_id)
+                conn.execute(
+                    "UPDATE artifacts SET state='queued', stage=NULL, progress=0, error=NULL, "
+                    "updated_at=? WHERE id=?",
+                    (now_iso(), artifact_id),
+                )
+        finally:
+            conn.close()
+        self._queue.put_nowait((notebook_id, job_id, "audio_resynth", artifact_id))
         return job_id
 
     def submit_note_index(self, notebook_id: str, note_id: str) -> str:
@@ -201,15 +224,20 @@ class JobRunner:
                     ),
                     services=self.services,
                 )
-            elif kind == "artifact":
+            elif kind in ("artifact", "audio_resynth"):
                 cancel = asyncio.Event()
                 if target_id in self._artifact_cancelled_early:
                     cancel.set()
                 self._artifact_cancel[target_id] = cancel
                 try:
-                    error = await run_generation(
-                        self.store, notebook_id, target_id, llm, settings, cancel
-                    )
+                    if kind == "artifact":
+                        error = await run_generation(
+                            self.store, notebook_id, target_id, llm, settings, cancel, self.services
+                        )
+                    else:
+                        error = await run_resynthesis(
+                            self.store, notebook_id, target_id, settings, cancel, self.services
+                        )
                 finally:
                     self._artifact_cancel.pop(target_id, None)
                     self._artifact_cancelled_early.discard(target_id)

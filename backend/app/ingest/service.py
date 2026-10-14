@@ -21,7 +21,7 @@ def _serialize(row: sqlite3.Row) -> dict:
     d["enabled"] = bool(d["enabled"])
     d["guide"] = json.loads(d["guide"]) if d["guide"] else None
     meta = json.loads(d["meta"]) if d.get("meta") else {}
-    d["meta"] = {k: v for k, v in meta.items() if k != "languages"}  # internal
+    d["meta"] = {k: v for k, v in meta.items() if k not in ("languages", "refreshing")}
     return d
 
 
@@ -128,3 +128,74 @@ def archive_current_version(
             (new_id(), source_id, version, row["fetched_at"], row["char_count"], now_iso()),
         )
     return version
+
+
+def discard_latest_version(
+    store: NotebookStore, notebook_id: str, conn: sqlite3.Connection, source_id: str
+) -> None:
+    """Forget the newest archived capture (used when a refresh failed and changed nothing)."""
+    row = conn.execute(
+        "SELECT version FROM source_versions WHERE source_id = ? ORDER BY version DESC LIMIT 1",
+        (source_id,),
+    ).fetchone()
+    if row is None:
+        return
+    with conn:
+        conn.execute(
+            "DELETE FROM source_versions WHERE source_id = ? AND version = ?",
+            (source_id, row["version"]),
+        )
+    shutil.rmtree(
+        store.source_dir(notebook_id, source_id) / "versions" / str(row["version"]),
+        ignore_errors=True,
+    )
+
+
+def settle_failure(
+    store: NotebookStore, notebook_id: str, conn: sqlite3.Connection, source_id: str, message: str
+) -> None:
+    """Record that processing a source failed. A failed *refresh* of a source that was ready
+    leaves the previous capture in place and usable, with the reason shown (FR-2.9)."""
+    row = conn.execute("SELECT * FROM sources WHERE id = ?", (source_id,)).fetchone()
+    if row is None:
+        return
+    meta = json.loads(row["meta"]) if row["meta"] else {}
+    folder = store.source_dir(notebook_id, source_id)
+    for leftover in ("original.html.new", "extracted.json.new"):
+        (folder / leftover).unlink(missing_ok=True)
+    has_index = conn.execute(
+        "SELECT 1 FROM chunks WHERE source_id = ? LIMIT 1", (source_id,)
+    ).fetchone()
+    if meta.get("refreshing") and has_index:
+        discard_latest_version(store, notebook_id, conn, source_id)
+        meta.pop("refreshing")
+        with conn:
+            conn.execute(
+                "UPDATE sources SET state='ready', stage=NULL, progress=1, error=?, meta=?, "
+                "updated_at=? WHERE id=?",
+                (f"The refresh failed: {message}", json.dumps(meta), now_iso(), source_id),
+            )
+        return
+    with conn:
+        conn.execute(
+            "UPDATE sources SET state='failed', stage=NULL, error=?, updated_at=? WHERE id=?",
+            (message, now_iso(), source_id),
+        )
+
+
+def list_versions(conn: sqlite3.Connection, source_id: str) -> list[dict]:
+    get_source(conn, source_id)
+    rows = conn.execute(
+        "SELECT version, fetched_at, char_count FROM source_versions "
+        "WHERE source_id = ? ORDER BY version",
+        (source_id,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def set_meta(conn: sqlite3.Connection, source_id: str, **values) -> None:
+    row = conn.execute("SELECT meta FROM sources WHERE id = ?", (source_id,)).fetchone()
+    meta = json.loads(row["meta"]) if row and row["meta"] else {}
+    meta.update(values)
+    with conn:
+        conn.execute("UPDATE sources SET meta = ? WHERE id = ?", (json.dumps(meta), source_id))

@@ -29,6 +29,11 @@ Only MIT, BSD, Apache-2.0, ISC, MPL-2.0, Unlicense, and PSF licenses are allowed
 | pytesseract | 0.3.13 | Apache-2.0 | M5 |
 | numpy | 2.5.4 | BSD-3-Clause (wheel also bundles components under 0BSD, MIT, Zlib, CC0-1.0) | M2 |
 
+M6 adds no Python packages: Kokoro ONNX inference uses numpy and onnxruntime (already listed) and
+`huggingface-hub` for the model download. The Kokoro model (Apache-2.0) is downloaded by the user at
+runtime, not shipped. `espeak-ng` (GPL-3.0) and `ffmpeg` are **separate programs** run as subprocesses
+and are never linked or bundled (allowed by §0); users install them themselves.
+
 ### Transitive dependencies added in M5 (checked from installed metadata)
 
 courlan 1.4.0 (Apache-2.0), htmldate 1.11.0 (Apache-2.0), jusText 3.0.2 (BSD), lxml-html-clean 0.4.5

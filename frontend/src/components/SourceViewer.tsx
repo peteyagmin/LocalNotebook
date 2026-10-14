@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, type Source, type SourceContent } from '../api'
-import { formatTimestamp } from '../format'
+import { api, type Source, type SourceContent, type SourceVersion } from '../api'
+import { formatDate, formatTimestamp } from '../format'
 
 export interface Highlight {
   start: number
@@ -21,20 +21,43 @@ interface SourceViewerProps {
 
 /** Extracted text with page markers (FR-2.8). With `highlight`, scrolls to and marks that range. */
 export function SourceViewer({ notebookId, source, highlight, onClose }: SourceViewerProps) {
-  const [content, setContent] = useState<SourceContent | null>(null)
+  const [loaded, setLoaded] = useState<{ key: string; content: SourceContent } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const markRef = useRef<HTMLElement | null>(null)
+  const [versions, setVersions] = useState<SourceVersion[]>([])
+  const [version, setVersion] = useState<number | null>(null) // null = the current capture
+  const key = `${source.id}/${version ?? 'current'}`
+  const content = loaded?.key === key ? loaded.content : null
+
+  useEffect(() => {
+    if (source.version_count === 0) return
+    let cancelled = false
+    api
+      .listVersions(notebookId, source.id)
+      .then((v) => !cancelled && setVersions(v))
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [notebookId, source.id, source.version_count])
 
   useEffect(() => {
     let cancelled = false
-    api
-      .getSourceContent(notebookId, source.id)
-      .then((c) => !cancelled && setContent(c))
+    const load =
+      version === null
+        ? api.getSourceContent(notebookId, source.id)
+        : api.getVersionContent(notebookId, source.id, version)
+    load
+      .then((c) => {
+        if (cancelled) return
+        setLoaded({ key, content: c })
+        setError(null)
+      })
       .catch((e) => !cancelled && setError(e instanceof Error ? e.message : String(e)))
     return () => {
       cancelled = true
     }
-  }, [notebookId, source.id])
+  }, [notebookId, source.id, version, key])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -52,7 +75,7 @@ export function SourceViewer({ notebookId, source, highlight, onClose }: SourceV
     `https://www.youtube.com/watch?v=${videoId}&t=${Math.floor(seconds)}s`
   // For a cited passage in a video: where it starts, so it can be opened in the browser.
   const citedStart =
-    content && highlight
+    content && highlight && version === null
       ? content.segments.find((seg) => seg.end > highlight.start && seg.start_s != null)?.start_s
       : undefined
   return (
@@ -91,6 +114,41 @@ export function SourceViewer({ notebookId, source, highlight, onClose }: SourceV
             </ul>
           </section>
         )}
+        {source.error && source.state === 'ready' && (
+          <p role="status" className="mb-3 rounded bg-amber-100 p-2 text-amber-950">
+            {source.error}
+          </p>
+        )}
+        {versions.length > 0 && (
+          <div className="mb-3 space-y-1">
+            <label className="text-xs">
+              Version{' '}
+              <select
+                aria-label="Version"
+                value={version ?? 'current'}
+                onChange={(e) =>
+                  setVersion(e.target.value === 'current' ? null : Number(e.target.value))
+                }
+                className="rounded border border-neutral-300 bg-transparent px-1 py-0.5 dark:border-neutral-700 dark:bg-neutral-900"
+              >
+                <option value="current">
+                  Current{source.fetched_at ? ` (captured ${formatDate(source.fetched_at)})` : ''}
+                </option>
+                {[...versions].reverse().map((v) => (
+                  <option key={v.version} value={v.version}>
+                    Earlier version {v.version}
+                    {v.fetched_at ? ` (captured ${formatDate(v.fetched_at)})` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {version !== null && (
+              <p role="status" className="rounded bg-amber-100 p-2 text-xs text-amber-950">
+                This is an earlier capture. Answers and generated documents use the current one.
+              </p>
+            )}
+          </div>
+        )}
         {source.url && (
           <p className="mb-3 text-xs text-neutral-500">
             <a href={source.url} target="_blank" rel="noreferrer noopener" className="underline">
@@ -122,7 +180,7 @@ export function SourceViewer({ notebookId, source, highlight, onClose }: SourceV
           lastPage = seg.page ?? lastPage
           const text = content.text.slice(seg.start, seg.end)
           const hl =
-            highlight && highlight.start < seg.end && highlight.end > seg.start
+            highlight && version === null && highlight.start < seg.end && highlight.end > seg.start
               ? {
                   from: Math.max(highlight.start, seg.start) - seg.start,
                   to: Math.min(highlight.end, seg.end) - seg.start,
