@@ -1,0 +1,83 @@
+import { useEffect, useState } from 'react'
+import { api, type Settings } from './api'
+import { Setup } from './pages/Setup'
+import { SettingsPage } from './pages/SettingsPage'
+import { Workspace } from './pages/Workspace'
+
+const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]'])
+
+/** Host to warn about when AI requests leave this machine (FR-8.4), else null. */
+export function remoteHost(baseUrl: string): string | null {
+  try {
+    const { hostname, host } = new URL(baseUrl)
+    return LOOPBACK.has(hostname) ? null : host
+  } catch {
+    return null
+  }
+}
+
+type View = 'workspace' | 'settings'
+
+export function App() {
+  const [settings, setSettings] = useState<Settings | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [view, setView] = useState<View>('workspace')
+
+  useEffect(() => {
+    api
+      .getSettings()
+      .then(setSettings)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+  }, [])
+
+  if (error)
+    return (
+      <p role="alert" className="p-6 text-red-600">
+        {error}
+      </p>
+    )
+  if (!settings) return <p className="p-6">Loading…</p>
+
+  const warnHost = remoteHost(settings.llm_base_url)
+
+  return (
+    <div className="flex h-screen flex-col bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
+      {warnHost && (
+        <div role="status" className="bg-amber-200 px-4 py-1 text-sm text-amber-950">
+          AI requests are being sent to {warnHost}.
+        </div>
+      )}
+      {settings.setup_completed && (
+        <header className="flex items-center justify-between border-b border-neutral-200 px-4 py-2 dark:border-neutral-800">
+          <span className="font-semibold">LocalNotebook</span>
+          <button
+            type="button"
+            onClick={() => setView(view === 'settings' ? 'workspace' : 'settings')}
+            className="rounded px-2 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          >
+            Settings
+          </button>
+        </header>
+      )}
+      {!settings.setup_completed ? (
+        <div className="flex-1 overflow-auto">
+          <Setup
+            settings={settings}
+            onSettingsChange={setSettings}
+            onDone={() => setView('workspace')}
+          />
+        </div>
+      ) : view === 'settings' ? (
+        <div className="flex-1 overflow-auto">
+          <SettingsPage
+            settings={settings}
+            onSettingsChange={setSettings}
+            onClose={() => setView('workspace')}
+          />
+        </div>
+      ) : (
+        <Workspace />
+      )}
+    </div>
+  )
+}
