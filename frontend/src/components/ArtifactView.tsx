@@ -1,6 +1,18 @@
 import { useEffect, useState } from 'react'
-import { api, type ArtifactDetail, type Citation } from '../api'
+import {
+  api,
+  type ArtifactDetail,
+  type ArtifactFormat,
+  type ArtifactKind,
+  type Citation,
+  type FlashcardsData,
+  type MindNodeData,
+  type TimelineData,
+} from '../api'
 import { AnswerText } from './AnswerText'
+import { FlashcardsView } from './FlashcardsView'
+import { MindMapView } from './MindMapView'
+import { TimelineView } from './TimelineView'
 
 interface ArtifactViewProps {
   notebookId: string
@@ -11,7 +23,30 @@ interface ArtifactViewProps {
   onToggleExpand: () => void
   onClose: () => void
   onOpenCitation: (citation: Citation) => void
+  /** Send a message to the chat (used by the mind map). */
+  onAskChat: (question: string) => void
   onChanged: () => void
+}
+
+const FORMAT_LABELS: Record<ArtifactFormat, string> = {
+  md: 'Markdown (.md)',
+  docx: 'Word (.docx)',
+  pdf: 'PDF (.pdf)',
+  json: 'JSON (.json)',
+  png: 'PNG image (.png)',
+  'csv-flashcards': 'Flashcards (.csv)',
+  'csv-quiz': 'Quiz (.csv)',
+}
+
+/** Export formats offered per artifact type (FR-5.11). */
+const EXPORTS: Record<ArtifactKind, ArtifactFormat[]> = {
+  summary: ['md', 'docx', 'pdf'],
+  briefing: ['md', 'docx', 'pdf'],
+  study_guide: ['md', 'docx', 'pdf'],
+  faq: ['md', 'docx', 'pdf'],
+  timeline: ['json', 'md', 'docx', 'pdf'],
+  mind_map: ['png', 'json'],
+  flashcards: ['csv-flashcards', 'csv-quiz', 'json'],
 }
 
 const buttonClass =
@@ -25,6 +60,7 @@ export function ArtifactView({
   onToggleExpand,
   onClose,
   onOpenCitation,
+  onAskChat,
   onChanged,
 }: ArtifactViewProps) {
   const [artifact, setArtifact] = useState<ArtifactDetail | null>(null)
@@ -57,7 +93,7 @@ export function ArtifactView({
     }
   }
 
-  async function download(format: 'md' | 'docx' | 'pdf') {
+  async function download(format: ArtifactFormat) {
     setExportOpen(false)
     await run(async () => {
       const { blob, filename } = await api.exportArtifact(notebookId, artifactId, format)
@@ -116,13 +152,7 @@ export function ArtifactView({
               role="menu"
               className="absolute right-0 z-30 mt-1 w-40 rounded border border-neutral-300 bg-white shadow dark:border-neutral-700 dark:bg-neutral-900"
             >
-              {(
-                [
-                  ['md', 'Markdown (.md)'],
-                  ['docx', 'Word (.docx)'],
-                  ['pdf', 'PDF (.pdf)'],
-                ] as const
-              ).map(([format, label]) => (
+              {EXPORTS[artifact.kind].map((format) => (
                 <button
                   key={format}
                   role="menuitem"
@@ -130,7 +160,7 @@ export function ArtifactView({
                   onClick={() => void download(format)}
                   className="block w-full px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
                 >
-                  {label}
+                  {FORMAT_LABELS[format]}
                 </button>
               ))}
             </div>
@@ -138,7 +168,13 @@ export function ArtifactView({
         </div>
       </header>
 
-      <div className="flex-1 overflow-auto p-4 text-sm">
+      <div
+        className={`flex-1 text-sm ${
+          artifact.kind === 'mind_map' && artifact.has_content
+            ? 'overflow-hidden'
+            : 'overflow-auto p-4'
+        }`}
+      >
         {artifact.stale && (
           <div
             role="status"
@@ -177,12 +213,31 @@ export function ArtifactView({
             <p className="text-xs text-neutral-500">{artifact.stage ?? 'Waiting…'}</p>
           </div>
         )}
-        {artifact.has_content && (
+        {artifact.has_content && artifact.format === 'markdown' && (
           <AnswerText
             text={artifact.content}
             citations={artifact.citations}
             onOpenCitation={onOpenCitation}
           />
+        )}
+        {artifact.has_content && artifact.kind === 'timeline' && artifact.data && (
+          <TimelineView
+            data={artifact.data as TimelineData}
+            citations={artifact.citations}
+            onOpenCitation={onOpenCitation}
+          />
+        )}
+        {artifact.has_content && artifact.kind === 'flashcards' && artifact.data && (
+          <FlashcardsView
+            data={artifact.data as FlashcardsData}
+            citations={artifact.citations}
+            onOpenCitation={onOpenCitation}
+          />
+        )}
+        {artifact.has_content && artifact.kind === 'mind_map' && artifact.data && (
+          <div className="h-full min-h-[360px]">
+            <MindMapView root={(artifact.data as { root: MindNodeData }).root} onAsk={onAskChat} />
+          </div>
         )}
         {!artifact.has_content && !working && !artifact.error && (
           <p className="text-neutral-500">Nothing generated yet.</p>

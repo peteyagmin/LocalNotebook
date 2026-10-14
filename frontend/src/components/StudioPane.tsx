@@ -7,6 +7,9 @@ const KINDS: { kind: ArtifactKind; label: string }[] = [
   { kind: 'briefing', label: 'Briefing' },
   { kind: 'study_guide', label: 'Study guide' },
   { kind: 'faq', label: 'FAQ' },
+  { kind: 'timeline', label: 'Timeline' },
+  { kind: 'mind_map', label: 'Mind map' },
+  { kind: 'flashcards', label: 'Flashcards & quiz' },
 ]
 
 const buttonClass =

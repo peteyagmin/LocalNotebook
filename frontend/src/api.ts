@@ -115,7 +115,38 @@ export interface Note {
   updated_at: string
 }
 
-export type ArtifactKind = 'summary' | 'briefing' | 'study_guide' | 'faq'
+export type ArtifactKind =
+  'summary' | 'briefing' | 'study_guide' | 'faq' | 'timeline' | 'mind_map' | 'flashcards'
+
+export interface TimelineData {
+  events: {
+    date: string
+    iso_date: string
+    title: string
+    description: string
+    sources: number[]
+  }[]
+  cast: { name: string; role: string; sources: number[] }[]
+}
+
+export interface MindNodeData {
+  label: string
+  sources: number[]
+  children: MindNodeData[]
+}
+
+export interface FlashcardsData {
+  flashcards: { front: string; back: string; sources: number[] }[]
+  quiz: {
+    question: string
+    options: string[]
+    correct_index: number
+    explanation: string
+    sources: number[]
+  }[]
+}
+
+export type ArtifactFormat = 'md' | 'docx' | 'pdf' | 'json' | 'png' | 'csv-flashcards' | 'csv-quiz'
 export type ArtifactState = 'queued' | 'running' | 'ready' | 'failed' | 'cancelled'
 
 export interface Artifact {
@@ -134,7 +165,9 @@ export interface Artifact {
 }
 
 export interface ArtifactDetail extends Artifact {
+  format: 'markdown' | 'json'
   content: string
+  data: TimelineData | { root: MindNodeData } | FlashcardsData | null
   citations: Citation[]
 }
 
@@ -315,7 +348,7 @@ export const api = {
     request<void>('POST', `${nb(id)}/artifacts/${artifactId}/cancel`),
   deleteArtifact: (id: string, artifactId: string) =>
     request<void>('DELETE', `${nb(id)}/artifacts/${artifactId}`),
-  exportArtifact: async (id: string, artifactId: string, format: 'md' | 'docx' | 'pdf') => {
+  exportArtifact: async (id: string, artifactId: string, format: ArtifactFormat) => {
     const resp = await fetch(`/api/v1${nb(id)}/artifacts/${artifactId}/export?format=${format}`, {
       headers: { Authorization: `Bearer ${token()}` },
     })

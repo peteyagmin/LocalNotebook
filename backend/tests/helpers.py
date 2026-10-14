@@ -15,9 +15,102 @@ MD_DOC = (
 )
 
 
+def _node(label, sources, children=()):
+    return {"label": label, "sources": sources, "children": list(children)}
+
+
+TIMELINE = {
+    "events": [
+        {
+            "date": "1902",
+            "iso_date": "1902",
+            "title": "Lighthouse built",
+            "description": "Tall.",
+            "sources": [1],
+        },
+        {
+            "date": "44 BCE",
+            "iso_date": "-44",
+            "title": "Ancient event",
+            "description": "",
+            "sources": [1, 99],
+        },
+        {
+            "date": "March 1874",
+            "iso_date": "1874-03",
+            "title": "Port founded",
+            "description": "By Aldane.",
+            "sources": [1],
+        },
+        {
+            "date": "1874",
+            "iso_date": "1874",
+            "title": "Year of founding",
+            "description": "",
+            "sources": [1],
+        },
+        {
+            "date": "Someday",
+            "iso_date": "2000",
+            "title": "Unsupported",
+            "description": "",
+            "sources": [99],
+        },
+    ],
+    "cast": [
+        {"name": "Henrik Aldane", "role": "founder", "sources": [1]},
+        {"name": "Ghost", "role": "invented", "sources": [77]},
+    ],
+}
+MIND_MAP = {
+    "root": _node(
+        "Zebras",
+        [1],
+        [
+            _node(
+                "Diet",
+                [1, 99],
+                [_node("Grass", [1], [_node("Too deep", [1], [_node("Way too deep", [1])])])],
+            ),
+            _node("Habitat", [], [_node("Savanna", [1])]),
+        ],
+    )
+}
+FLASHCARDS = {
+    "flashcards": [{"front": f"Front {i}", "back": f"Back {i}", "sources": [1]} for i in range(6)]
+    + [{"front": "Unsupported", "back": "x", "sources": [99]}]
+}
+QUIZ = {
+    "quiz": [
+        {
+            "question": f"Question {i}?",
+            "options": ["A", "B", "C", "D"],
+            "correct_index": i % 4,
+            "explanation": "Because.",
+            "sources": [1],
+        }
+        for i in range(12)
+    ]
+}
+
+
+def original_prompt(messages: list[Message]) -> str:
+    """The task prompt, ignoring the "that reply was not valid" retry messages."""
+    users = [m["content"] for m in messages if m["role"] == "user"]
+    return next((c for c in reversed(users) if not c.startswith("That reply was not valid")), "")
+
+
 def brain(_model: str, messages: list[Message]) -> str:
     """Scripted model that recognises each kind of prompt the app sends."""
-    last = messages[-1]["content"]
+    last = original_prompt(messages)
+    if "Extract a timeline" in last:
+        return json.dumps(TIMELINE)
+    if "Build a mind map" in last:
+        return json.dumps(MIND_MAP)
+    if "flashcards that help" in last:
+        return json.dumps(FLASHCARDS)
+    if "multiple-choice questions" in last:
+        return json.dumps(QUIZ)
     if "working notes" in last:
         return "- A note about zebras [1]."
     if "the user's own notes" in last:

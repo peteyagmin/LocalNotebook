@@ -208,7 +208,134 @@ def to_pdf(title: str, content: str, citations: list[dict]) -> bytes:
 
 
 def export(fmt: str, title: str, content: str, citations: list[dict]) -> tuple[bytes, str, str]:
-    """(bytes, media type, filename)."""
+    """(bytes, media type, filename) for a Markdown artifact."""
     media_type, ext = FORMATS[fmt]
     maker = {"md": to_markdown, "docx": to_docx, "pdf": to_pdf}[fmt]
     return maker(title, content, citations), media_type, filename(title, ext)
+
+
+# --- structured artifacts --------------------------------------------------------------------
+
+# Which export formats each artifact kind offers.
+ALLOWED_FORMATS = {
+    "summary": ["md", "docx", "pdf"],
+    "briefing": ["md", "docx", "pdf"],
+    "study_guide": ["md", "docx", "pdf"],
+    "faq": ["md", "docx", "pdf"],
+    "timeline": ["json", "md", "docx", "pdf"],
+    "mind_map": ["png", "json"],
+    "flashcards": ["csv-flashcards", "csv-quiz", "json"],
+}
+
+
+def _by_label(citations: list[dict]) -> dict[int, dict]:
+    return {c["label"]: c for c in citations}
+
+
+def _source_text(labels: list[int], by_label: dict[int, dict]) -> str:
+    parts = []
+    for n in labels:
+        c = by_label.get(n)
+        if c:
+            where = describe_location(c.get("location", {}))
+            parts.append(f"{c['source_name']}{', ' + where if where else ''}")
+    return "; ".join(parts)
+
+
+def timeline_markdown(data: dict) -> str:
+    """The timeline as a dated list with [n] citations, then the cast of key people."""
+    lines = ["# Timeline", ""]
+    if not data["events"]:
+        lines.append("No dated events found.")
+    for e in data["events"]:
+        marks = "".join(f"[{n}]" for n in e["sources"])
+        desc = f": {e['description']}" if e.get("description") else ""
+        lines.append(f"- **{e['date']}** - {e['title']}{desc} {marks}".rstrip())
+    if data["cast"]:
+        lines += ["", "## Key people and entities", ""]
+        for m in data["cast"]:
+            marks = "".join(f"[{n}]" for n in m["sources"])
+            role = f" - {m['role']}" if m.get("role") else ""
+            lines.append(f"- **{m['name']}**{role} {marks}".rstrip())
+    return "\n".join(lines) + "\n"
+
+
+def to_json(kind: str, title: str, data: dict, citations: list[dict]) -> bytes:
+    import json
+
+    document = {
+        "title": title,
+        "kind": kind,
+        "data": data,
+        "sources": [
+            {
+                "label": c["label"],
+                "source": c["source_name"],
+                "location": describe_location(c.get("location", {})),
+            }
+            for c in sorted(citations, key=lambda c: c["label"])
+        ],
+    }
+    return json.dumps(document, ensure_ascii=False, indent=2).encode("utf-8")
+
+
+def _csv(rows: list[list[str]]) -> bytes:
+    import csv
+
+    out = io.StringIO()
+    csv.writer(out).writerows(rows)
+    return out.getvalue().encode("utf-8-sig")  # BOM so Excel reads UTF-8
+
+
+def flashcards_csv(data: dict, citations: list[dict]) -> bytes:
+    by = _by_label(citations)
+    rows = [["front", "back", "source"]]
+    rows += [[c["front"], c["back"], _source_text(c["sources"], by)] for c in data["flashcards"]]
+    return _csv(rows)
+
+
+def quiz_csv(data: dict, citations: list[dict]) -> bytes:
+    by = _by_label(citations)
+    rows = [
+        [
+            "question",
+            "option_a",
+            "option_b",
+            "option_c",
+            "option_d",
+            "correct",
+            "explanation",
+            "source",
+        ]
+    ]
+    for q in data["quiz"]:
+        rows.append(
+            [q["question"], *q["options"], "ABCD"[q["correct_index"]], q["explanation"]]
+            + [_source_text(q["sources"], by)]
+        )
+    return _csv(rows)
+
+
+def export_structured(
+    fmt: str, kind: str, title: str, data: dict, citations: list[dict]
+) -> tuple[bytes, str, str]:
+    """(bytes, media type, filename) for a timeline, mind map, or flashcards-and-quiz artifact."""
+    if fmt == "json":
+        return to_json(kind, title, data, citations), "application/json", filename(title, "json")
+    if fmt == "png":
+        from app.studio.mindmap_image import render_png
+
+        return render_png(title, data), "image/png", filename(title, "png")
+    if fmt == "csv-flashcards":
+        return (
+            flashcards_csv(data, citations),
+            "text/csv; charset=utf-8",
+            filename(f"{title} flashcards", "csv"),
+        )
+    if fmt == "csv-quiz":
+        return (
+            quiz_csv(data, citations),
+            "text/csv; charset=utf-8",
+            filename(f"{title} quiz", "csv"),
+        )
+    return export(fmt, title, timeline_markdown(data), citations)  # timeline as md/docx/pdf

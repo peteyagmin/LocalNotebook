@@ -1,0 +1,7 @@
+Write exactly 10 multiple-choice questions that test understanding of the material.
+
+Respond with a JSON object of exactly this shape:
+{"quiz": [{"question": "the question", "options": ["first option", "second option", "third option", "fourth option"], "correct_index": 2, "explanation": "one or two sentences saying why the answer is right", "sources": [1]}]}
+
+- Give exactly 4 options per question and make exactly one of them correct. "correct_index" is the position (0 to 3) of the correct option.
+- Write the options as plain text without letters or numbers in front of them, and vary which position is correct.

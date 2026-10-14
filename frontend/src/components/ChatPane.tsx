@@ -9,6 +9,8 @@ interface ChatPaneProps {
   /** Changes when the set of usable sources changes (refreshes the starter questions). */
   sourcesKey: string
   onOpenCitation: (citation: Citation) => void
+  /** A message to send as soon as the chat is free (from the mind map). */
+  askRequest?: { id: number; text: string } | null
   /** Called with the new note after "Save to note". */
   onNoteSaved: (note: Note) => void
   /** Covers the pane (the source viewer). */
@@ -22,9 +24,17 @@ export function ChatPane({
   sourcesKey,
   onOpenCitation,
   onNoteSaved,
+  askRequest,
   overlay,
 }: ChatPaneProps) {
   const chat = useChat(notebookId, sourcesKey)
+  const handled = useRef<number | null>(null)
+  useEffect(() => {
+    if (!askRequest || handled.current === askRequest.id || chat.busy || chat.messages === null)
+      return
+    handled.current = askRequest.id
+    void chat.send(askRequest.text)
+  }, [askRequest, chat])
   return (
     <Pane
       title="Chat"

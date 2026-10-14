@@ -2,12 +2,12 @@
 
 Local, source-grounded research notebook. See `PROJECT_SPEC.md` for the full specification.
 
-**Status:** M3 implemented (notes and text artifacts). On top of M2 (grounded chat with citations)
-you can now keep chat answers as notes, edit notes in Markdown with a live preview, summarize or
-combine notes, turn notes into sources, and generate four documents from your sources (summary,
-briefing, study guide, FAQ) that you can export as Markdown, Word, or PDF. Artifacts show a "Sources
-changed" badge when a source they used is disabled or removed. Structured artifacts (timeline, mind
-map, flashcards), the remaining source types, and audio overviews come in later milestones.
+**Status:** M4 implemented (structured artifacts). On top of M3 (notes and text documents) the Studio
+can now build a **timeline** (dated events plus key people, sorted by date), an interactive **mind
+map** (collapse and expand branches; clicking a node asks the chat about it), and **flashcards with a
+quiz** (flip cards, 10 multiple-choice questions with explanations and a final score). Exports:
+timeline as JSON/Markdown/Word/PDF, mind map as PNG/JSON, flashcards and quiz as CSV/JSON. The
+remaining source types (web, YouTube, audio, images) and audio overviews come in later milestones.
 
 Ingesting a source calls your model server twice (embeddings, then a short source guide), so a chat
 model and an embedding model must be set in Settings first. Without them a source shows as failed

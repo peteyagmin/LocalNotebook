@@ -1,0 +1,8 @@
+Extract a timeline of dated events from the material, plus the key people and entities it mentions.
+
+Respond with a JSON object of exactly this shape:
+{"events": [{"date": "March 1902", "iso_date": "1902-03", "title": "short title", "description": "one sentence", "sources": [3]}], "cast": [{"name": "Name", "role": "who or what they are, in a few words", "sources": [2]}]}
+
+- "date" is the date as the material states it. "iso_date" is the same date written as YYYY, YYYY-MM, or YYYY-MM-DD (put a minus sign before the year for dates BCE).
+- Only include events the material gives a date for. If there are none, use an empty list for "events".
+- List events in chronological order, at most 30 events and at most 15 people or entities.

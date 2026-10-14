@@ -43,6 +43,7 @@ Only MIT, BSD, Apache-2.0, ISC, MPL-2.0, Unlicense, and PSF licenses are allowed
 | eslint-plugin-react-hooks | 7.1.1 | MIT |
 | globals | 17.13.0 | MIT |
 | prettier | 3.9.10 | MIT |
+| @xyflow/react (React Flow) | 12.12.0 | MIT (its 19 transitive dependencies: MIT, ISC for d3-* modules, BSD-3-Clause for d3-ease) |
 | react-markdown | 9.1.0 | MIT (its 81 transitive dependencies: MIT, plus one ISC) |
 | @types/node, @types/react, @types/react-dom | 26.6.5 / 18.3.31 / 18.3.7 | MIT |
 

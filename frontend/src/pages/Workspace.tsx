@@ -25,6 +25,7 @@ export function Workspace({ notebookId, viewing, onView, studio, onStudio }: Wor
   const { artifacts, refresh: refreshArtifacts } = useArtifacts(notebookId)
   const { notes, refresh: refreshNotes } = useNotes(notebookId)
   const [expanded, setExpanded] = useState(false)
+  const [askRequest, setAskRequest] = useState<{ id: number; text: string } | null>(null)
   const { sources, setSources, refresh, error } = useSources(notebookId)
   const closeViewer = useCallback(() => onView(null), [onView])
   const viewed: Source | undefined = sources?.find((s) => s.id === viewing?.sourceId)
@@ -54,6 +55,10 @@ export function Workspace({ notebookId, viewing, onView, studio, onStudio }: Wor
         onToggleExpand={() => setExpanded(!expanded)}
         onClose={closeStudio}
         onOpenCitation={openCitation}
+        onAskChat={(text) => {
+          setExpanded(false) // make the chat visible
+          setAskRequest({ id: Date.now(), text })
+        }}
         onChanged={() => void refreshArtifacts()}
       />
     ) : (
@@ -110,6 +115,7 @@ export function Workspace({ notebookId, viewing, onView, studio, onStudio }: Wor
       )}
       <ChatPane
         notebookId={notebookId}
+        askRequest={askRequest}
         sourcesKey={sourcesKey}
         onNoteSaved={(note) => {
           void refreshNotes()

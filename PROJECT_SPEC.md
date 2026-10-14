@@ -365,7 +365,7 @@ FR-1.1, FR-1.2, FR-1.4; FR-2.1 (PDF, DOCX, TXT, MD, pasted text only), FR-2.3–
 * \[x] **M2 — Grounded chat**
 FR-3.1–FR-3.9, FR-7.1, SR-3 prompt hardening.
 *Accept:* answers stream with working citation chips that open the right passage; unanswerable questions are declined; stop works; QA-4 eval script runs and prints results.
-* \[ ] **M3 — Notes \& text artifacts**
+* \[x] **M3 — Notes \& text artifacts**
 FR-4.1–FR-4.3; FR-5.1–FR-5.4, FR-5.9–FR-5.13 (Markdown artifacts).
 *Accept:* each artifact generates, cites, exports to md/docx/pdf, and shows the stale badge after a source is removed.
 * \[ ] **M4 — Structured artifacts**

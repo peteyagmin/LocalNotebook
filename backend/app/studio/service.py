@@ -9,7 +9,7 @@ import sqlite3
 from app.core.errors import AppError
 from app.core.ids import new_id, now_iso
 from app.core.notebooks import NotebookStore, NotFound
-from app.studio.generate import KINDS, MAX_FOCUS_CHARS, artifact_dir
+from app.studio.generate import JSON_KINDS, KINDS, MAX_FOCUS_CHARS, artifact_dir
 
 ACTIVE_STATES = ("queued", "running")
 
@@ -61,11 +61,19 @@ def get_artifact(
     """The artifact with its Markdown and citations (chips for removed chunks are flagged)."""
     row = get_row(conn, artifact_id)
     data = _to_dict(conn, row)
-    data["content"] = ""
+    json_kind = row["kind"] in JSON_KINDS
+    data["format"] = "json" if json_kind else "markdown"
+    data["content"] = ""  # Markdown artifacts
+    data["data"] = None  # structured artifacts
     data["citations"] = []
     if row["has_content"]:
-        path = artifact_dir(store, notebook_id, artifact_id) / "content.md"
-        data["content"] = path.read_text(encoding="utf-8") if path.exists() else ""
+        filename = "content.json" if json_kind else "content.md"
+        path = artifact_dir(store, notebook_id, artifact_id) / filename
+        text = path.read_text(encoding="utf-8") if path.exists() else ""
+        if json_kind:
+            data["data"] = json.loads(text) if text else None
+        else:
+            data["content"] = text
         citations = json.loads(row["citations"])
         ids = [c["chunk_id"] for c in citations]
         existing: set[str] = set()

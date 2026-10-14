@@ -55,7 +55,15 @@ it('offers one button per artifact type and starts a generation with the focus',
     within(create)
       .getAllByRole('button')
       .map((b) => b.textContent),
-  ).toEqual(['Summary', 'Briefing', 'Study guide', 'FAQ'])
+  ).toEqual([
+    'Summary',
+    'Briefing',
+    'Study guide',
+    'FAQ',
+    'Timeline',
+    'Mind map',
+    'Flashcards & quiz',
+  ])
   await userEvent.type(within(pane).getByLabelText('Focus (optional)'), 'for beginners')
   await userEvent.click(within(pane).getByRole('button', { name: 'Study guide' }))
   await waitFor(() =>

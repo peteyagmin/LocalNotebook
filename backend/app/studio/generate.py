@@ -14,6 +14,7 @@ import os
 import secrets
 from collections.abc import Awaitable, Callable
 from pathlib import Path
+from typing import TypeVar
 
 from app.chat.service import build_citation, describe_location
 from app.core.ids import now_iso
@@ -21,19 +22,28 @@ from app.core.notebooks import NotebookStore, NotFound
 from app.ingest.chunker import est_tokens
 from app.llm.base import LLMClient, LLMError, Message
 from app.llm.prompts import render_prompt
+from app.llm.structured import StructuredOutputError
 from app.notes.service import filter_to_valid
 from app.retrieval.hybrid import Retrieved
 from app.retrieval.vectors import ENABLED_READY
+from app.studio.structured import PARTS, build_data, is_empty, used_labels
 
 log = logging.getLogger(__name__)
+T = TypeVar("T")
 
 KINDS = {
     "summary": "Notebook summary",
     "briefing": "Briefing document",
     "study_guide": "Study guide",
     "faq": "FAQ",
+    "timeline": "Timeline",
+    "mind_map": "Mind map",
+    "flashcards": "Flashcards & quiz",
 }
+JSON_KINDS = frozenset(PARTS)
 OUTPUT_RESERVE_TOKENS = 1500
+# Structured answers are longer than most prose, so leave more room for them.
+OUTPUT_RESERVE_BY_KIND = {"timeline": 2500, "mind_map": 2000, "flashcards": 3000}
 PROMPT_OVERHEAD_TOKENS = 700
 MAX_CONDENSE_ROUNDS = 6
 MAX_FOCUS_CHARS = 500
@@ -95,7 +105,9 @@ def group_by_budget(texts: list[str], budget: int) -> list[list[int]]:
     return groups
 
 
-def build_messages(task: str, material: str, focus: str) -> list[Message]:
+def build_messages(
+    task: str, material: str, focus: str, system: str = "artifact_system"
+) -> list[Message]:
     nonce = secrets.token_hex(8)
     focus_block = render_prompt("artifact_focus", focus=focus.strip()) if focus.strip() else ""
     user = render_prompt(
@@ -107,12 +119,12 @@ def build_messages(task: str, material: str, focus: str) -> list[Message]:
         focus_block=focus_block,
     )
     return [
-        {"role": "system", "content": render_prompt("artifact_system")},
+        {"role": "system", "content": render_prompt(system)},
         {"role": "user", "content": user},
     ]
 
 
-async def _race(coro: Awaitable[str], cancel: asyncio.Event) -> str:
+async def _race(coro: Awaitable[T], cancel: asyncio.Event) -> T:
     """Run an LLM call but give up promptly if the job is cancelled (FR-5.12)."""
     call = asyncio.ensure_future(coro)
     waiter = asyncio.ensure_future(cancel.wait())
@@ -183,12 +195,10 @@ async def run_generation(
             progress=0.05,
         )
         model = settings["chat_model"]
-        budget = max(
-            1000,
-            settings["context_window_tokens"] - OUTPUT_RESERVE_TOKENS - PROMPT_OVERHEAD_TOKENS,
-        )
+        reserve = OUTPUT_RESERVE_BY_KIND.get(kind, OUTPUT_RESERVE_TOKENS)
+        budget = max(1000, settings["context_window_tokens"] - reserve - PROMPT_OVERHEAD_TOKENS)
         texts = [passage_text(i, r) for i, r in enumerate(passages, start=1)]
-        task = render_prompt(f"artifact_{kind}")
+        task = "" if kind in JSON_KINDS else render_prompt(f"artifact_{kind}")
 
         material_parts = texts
         if sum(est_tokens(len(t)) for t in texts) > budget:
@@ -196,20 +206,40 @@ async def run_generation(
                 llm, model, texts, budget, focus, cancel, stage
             )
         stage("Writing", 0.8)
-        reply = await _race(
-            llm.chat(model, build_messages(task, "\n\n".join(material_parts), focus)), cancel
-        )
-
         citations = [build_citation(i, r) for i, r in enumerate(passages, start=1)]
-        content, used = filter_to_valid(reply.strip(), citations)
-        if not content.strip():
-            raise GenerationError("The model returned an empty document. Try again.")
+        if kind in JSON_KINDS:
+            material = "\n\n".join(material_parts)
+            data = await build_data(
+                kind,
+                llm,
+                model,
+                lambda prompt: build_messages(
+                    render_prompt(prompt), material, focus, system="artifact_system_json"
+                ),
+                lambda awaitable: _race(awaitable, cancel),
+                {c["label"] for c in citations},
+            )
+            if is_empty(kind, data):
+                raise GenerationError(
+                    "The model's answer had nothing the sources support. Try again."
+                )
+            labels = used_labels(data)
+            used = [c for c in citations if c["label"] in labels]
+            content, filename = json.dumps(data, ensure_ascii=False), "content.json"
+        else:
+            reply = await _race(
+                llm.chat(model, build_messages(task, "\n\n".join(material_parts), focus)), cancel
+            )
+            content, used = filter_to_valid(reply.strip(), citations)
+            filename = "content.md"
+            if not content.strip():
+                raise GenerationError("The model returned an empty document. Try again.")
 
         folder = artifact_dir(store, notebook_id, artifact_id)
         folder.mkdir(parents=True, exist_ok=True)
-        tmp = folder / "content.md.tmp"
+        tmp = folder / f"{filename}.tmp"
         tmp.write_text(content, encoding="utf-8")
-        os.replace(tmp, folder / "content.md")
+        os.replace(tmp, folder / filename)
         _update(
             store,
             notebook_id,
@@ -228,7 +258,7 @@ async def run_generation(
         cancelled = True
     except NotFound:
         return "Cancelled."
-    except (GenerationError, LLMError) as e:
+    except (GenerationError, LLMError, StructuredOutputError) as e:
         message, cancelled = str(e), False
     except Exception as e:
         log.exception("Artifact generation failed for %s", artifact_id)

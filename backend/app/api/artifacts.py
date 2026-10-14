@@ -158,7 +158,7 @@ def delete_artifact(
 def export_artifact(
     notebook_id: str,
     artifact_id: str,
-    format: str = Query(pattern="^(md|docx|pdf)$"),
+    format: str = Query(pattern="^(md|docx|pdf|json|png|csv-flashcards|csv-quiz)$"),
     store: NotebookStore = Depends(get_store),
 ) -> Response:
     conn = _conn(store, notebook_id)
@@ -168,10 +168,17 @@ def export_artifact(
         conn.close()
     if not artifact["has_content"]:
         raise AppError(409, "not_ready", "This has not been generated yet.")
+    if format not in export_module.ALLOWED_FORMATS[artifact["kind"]]:
+        raise AppError(422, "unsupported_format", f"This cannot be exported as {format}.")
     used = [c for c in artifact["citations"] if not c.get("removed")]
-    data, media_type, name = export_module.export(
-        format, artifact["title"], artifact["content"], used
-    )
+    if artifact["format"] == "json":
+        data, media_type, name = export_module.export_structured(
+            format, artifact["kind"], artifact["title"], artifact["data"], used
+        )
+    else:
+        data, media_type, name = export_module.export(
+            format, artifact["title"], artifact["content"], used
+        )
     return Response(
         data,
         media_type=media_type,

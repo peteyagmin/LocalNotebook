@@ -1,0 +1,7 @@
+Build a mind map of the material as a tree with at most 4 levels, counting the root as level 1.
+
+Respond with a JSON object of exactly this shape:
+{"root": {"label": "central topic", "sources": [], "children": [{"label": "branch", "sources": [1], "children": [{"label": "detail", "sources": [2], "children": []}]}]}}
+
+- Every node has "label" (at most 8 words), "sources" (passage numbers that support it; it may be empty for broad branches), and "children" (an empty list for leaves).
+- Give the root 3 to 7 children and every other node at most 6 children. Never go deeper than level 4.

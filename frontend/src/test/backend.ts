@@ -159,6 +159,8 @@ export function artifactDetail(
 ): import('../api').ArtifactDetail {
   return {
     ...artifact(),
+    format: 'markdown',
+    data: null,
     content: '# Notebook summary\n\nZebras graze [1].\n\n## Key points\n\n- Herds',
     citations: chatMessage().citations,
     ...over,
@@ -175,4 +177,66 @@ export function note(over: Partial<import('../api').Note> = {}): import('../api'
     updated_at: '2026-10-14T00:00:00Z',
     ...over,
   }
+}
+
+export const timelineData = {
+  events: [
+    {
+      date: '1874',
+      iso_date: '1874',
+      title: 'Port founded',
+      description: 'By Aldane.',
+      sources: [1],
+    },
+    {
+      date: 'March 1902',
+      iso_date: '1902-03',
+      title: 'Lighthouse built',
+      description: '',
+      sources: [1],
+    },
+  ],
+  cast: [{ name: 'Henrik Aldane', role: 'founder', sources: [1] }],
+}
+
+export const mindMapData = {
+  root: {
+    label: 'Zebras',
+    sources: [],
+    children: [
+      { label: 'Diet', sources: [1], children: [{ label: 'Grass', sources: [1], children: [] }] },
+      { label: 'Habitat', sources: [], children: [] },
+    ],
+  },
+}
+
+export const flashcardsData = {
+  flashcards: [
+    { front: 'What do zebras eat?', back: 'Grass', sources: [1] },
+    { front: 'Where do they live?', back: 'Savanna', sources: [1] },
+    { front: 'How do they travel?', back: 'In herds', sources: [] },
+  ],
+  quiz: [
+    {
+      question: 'Q1?',
+      options: ['A1', 'B1', 'C1', 'D1'],
+      correct_index: 1,
+      explanation: 'Because one.',
+      sources: [1],
+    },
+    {
+      question: 'Q2?',
+      options: ['A2', 'B2', 'C2', 'D2'],
+      correct_index: 0,
+      explanation: 'Because two.',
+      sources: [1],
+    },
+    {
+      question: 'Q3?',
+      options: ['A3', 'B3', 'C3', 'D3'],
+      correct_index: 3,
+      explanation: 'Because three.',
+      sources: [],
+    },
+  ],
 }
