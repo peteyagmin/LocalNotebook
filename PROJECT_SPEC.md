@@ -374,7 +374,7 @@ FR-5.5–FR-5.7 with schema validation and retry.
 * \[x] **M5 — Remaining source types \& web**
 FR-2.1 (HTML, EPUB, images, audio), FR-2.2 OCR, FR-2.9–FR-2.12, SR-4, FR-8.6.
 *Accept:* webpage and YouTube imports work with timestamped citations; caption-less video fails with the correct message when the setting is off and transcribes when on; Discover returns ranked suggestions from a configured SearXNG instance and imports only selected items; private-IP URLs are refused.
-* \[ ] **M6 — Audio overview**
+* \[x] **M6 — Audio overview**
 FR-6.1–FR-6.4.
 *Accept:* all lengths/formats generate playable MP3s with synced transcript; editing the script and re-synthesizing works without regenerating the script.
 * \[ ] **M7 — Export/import \& polish**

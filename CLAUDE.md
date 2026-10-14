@@ -5,8 +5,7 @@ edit it except to tick milestone boxes in §12. Stop after each milestone for ow
 
 ## Current status
 
-M0-M5 accepted. M6 (audio overview, failed-refresh handling, source version picker) implemented,
-awaiting owner acceptance. Next: M7 (export/import).
+M0-M6 accepted. Next: M7 (export/import).
 
 ## Architecture (as built)
 
