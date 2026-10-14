@@ -5,8 +5,7 @@ edit it except to tick milestone boxes in §12. Stop after each milestone for ow
 
 ## Current status
 
-M0-M6 accepted. M7 (export/import, index rebuild, theming, keyboard, accessibility, smoke test,
-performance check) implemented, awaiting owner sign-off on v1.0.
+M0-M7 accepted: v1.0 signed off by the owner.
 
 ## Architecture (as built)
 

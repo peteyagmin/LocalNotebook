@@ -377,7 +377,7 @@ FR-2.1 (HTML, EPUB, images, audio), FR-2.2 OCR, FR-2.9–FR-2.12, SR-4, FR-8.6.
 * \[x] **M6 — Audio overview**
 FR-6.1–FR-6.4.
 *Accept:* all lengths/formats generate playable MP3s with synced transcript; editing the script and re-synthesizing works without regenerating the script.
-* \[ ] **M7 — Export/import \& polish**
+* \[x] **M7 — Export/import \& polish**
 FR-1.3, FR-8.5, theming, keyboard shortcuts, accessibility pass, QA-5 smoke test, performance check against §9.
 *Accept:* a notebook exported on one machine imports cleanly on another; smoke test passes; owner signs off on v1.0.
 

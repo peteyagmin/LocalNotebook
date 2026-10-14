@@ -2,7 +2,7 @@
 
 Local, source-grounded research notebook. See `PROJECT_SPEC.md` for the full specification.
 
-**Status:** M7 implemented (export/import and polish): v1.0 candidate. Everything from M0 to M6
+**Status:** v1.0 (M0-M7 complete). Everything from M0 to M6
 (notebooks, sources of every type, cited chat, notes, generated documents, structured study aids,
 audio overviews) plus:
 
