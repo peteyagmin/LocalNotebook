@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { SourceViewer } from './SourceViewer'
 import { mockBackend, source } from '../test/backend'
@@ -28,6 +28,6 @@ it('highlights the requested range across the right segment and scrolls to it', 
   )
   const mark = await screen.findByText('beta')
   expect(mark.tagName).toBe('MARK')
-  expect(scroll).toHaveBeenCalled()
+  await waitFor(() => expect(scroll).toHaveBeenCalled())
   expect(screen.queryByText(/^Page /)).not.toBeInTheDocument() // no page markers without pages
 })

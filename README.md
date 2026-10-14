@@ -2,9 +2,11 @@
 
 Local, source-grounded research notebook. See `PROJECT_SPEC.md` for the full specification.
 
-**Status:** M1 implemented (notebooks and core ingestion): create, rename, duplicate and delete
-notebooks; add PDF, DOCX, TXT, Markdown and pasted-text sources; view extracted text; enable or
-disable sources. Chat, notes, and generated outputs come in later milestones.
+**Status:** M2 implemented (grounded chat). On top of M1 (notebooks, PDF/DOCX/TXT/Markdown/pasted
+text sources, source viewer) you can now ask questions: answers stream in with numbered citation
+chips that open the exact passage, the assistant says so when the sources don't cover a question,
+and a search box (Ctrl/Cmd+K) finds passages across enabled sources. Notes, generated outputs, and
+the remaining source types come in later milestones.
 
 Ingesting a source calls your model server twice (embeddings, then a short source guide), so a chat
 model and an embedding model must be set in Settings first. Without them a source shows as failed
@@ -39,6 +41,19 @@ uv run pytest
 uv run ruff check
 cd frontend && npm test && npm run lint
 ```
+
+## Grounding evaluation (QA-4)
+
+Run manually against a real model; it uses fictional documents so the model cannot answer from
+memory:
+
+```
+uv run python evals/run_eval.py --chat-model <name> --embedding-model <name>
+```
+
+It asks 30 questions (15 answerable, 15 not) and prints a results table with two rates: citation
+support (target 95%) and correct refusal (target 90%). `--selftest` checks the script itself with a
+scripted model and needs no server.
 
 ## Configuration
 

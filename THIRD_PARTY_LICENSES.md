@@ -18,6 +18,7 @@ Only MIT, BSD, Apache-2.0, ISC, MPL-2.0, Unlicense, and PSF licenses are allowed
 | python-docx | 1.2.0 | MIT (depends on lxml, BSD-3-Clause) | M1 |
 | python-multipart | 0.0.32 | Apache-2.0 | M1 |
 | sqlite-vec | 0.1.9 | MIT OR Apache-2.0 | M1 |
+| numpy | 2.5.4 | BSD-3-Clause (wheel also bundles components under 0BSD, MIT, Zlib, CC0-1.0) | M2 |
 
 ## JavaScript (`frontend/package.json`)
 
@@ -38,6 +39,7 @@ Only MIT, BSD, Apache-2.0, ISC, MPL-2.0, Unlicense, and PSF licenses are allowed
 | eslint-plugin-react-hooks | 7.1.1 | MIT |
 | globals | 17.13.0 | MIT |
 | prettier | 3.9.10 | MIT |
+| react-markdown | 9.1.0 | MIT (its 81 transitive dependencies: MIT, plus one ISC) |
 | @types/node, @types/react, @types/react-dom | 26.6.5 / 18.3.31 / 18.3.7 | MIT |
 
 ## External programs (called over HTTP or as a subprocess, not linked)

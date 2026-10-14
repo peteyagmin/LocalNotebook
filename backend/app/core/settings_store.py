@@ -31,3 +31,8 @@ def update(conn: sqlite3.Connection, changes: dict) -> None:
                 "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                 (key, json.dumps(value)),
             )
+
+
+def load_defaults_for_eval() -> dict:
+    """Defaults without touching a database (used by evals/run_eval.py)."""
+    return load_defaults()

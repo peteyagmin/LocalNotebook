@@ -9,9 +9,20 @@ interface PaneProps {
   children: ReactNode
   /** Covers the pane body (used by the source viewer). */
   overlay?: ReactNode
+  /** Fixed area below the scrolling body (used by the chat input). */
+  footer?: ReactNode
 }
 
-export function Pane({ title, collapsed, onToggle, side, width, children, overlay }: PaneProps) {
+export function Pane({
+  title,
+  collapsed,
+  onToggle,
+  side,
+  width,
+  children,
+  overlay,
+  footer,
+}: PaneProps) {
   const style = side === 'center' ? undefined : { width: collapsed ? 40 : width }
   const arrow = collapsed ? (side === 'left' ? '»' : '«') : side === 'left' ? '«' : '»'
   return (
@@ -37,6 +48,7 @@ export function Pane({ title, collapsed, onToggle, side, width, children, overla
         )}
       </header>
       {!collapsed && <div className="flex-1 overflow-auto p-3 text-sm">{children}</div>}
+      {!collapsed && footer}
       {overlay}
     </section>
   )

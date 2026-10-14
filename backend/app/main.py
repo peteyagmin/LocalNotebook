@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import health, notebooks, settings, sources
+from app.api import chat, health, notebooks, search, settings, sources
 from app.core import db, settings_store
 from app.core.config import FRONTEND_DIST, MIGRATIONS_DIR, RuntimeConfig, load_runtime_config
 from app.core.errors import AppError
@@ -65,6 +65,7 @@ def create_app(
     app.state.app_db_path = app_db_path
     app.state.store = store
     app.state.runner = runner
+    app.state.chat_stops = {}
 
     app.add_middleware(SecurityMiddleware, token=token, allowed_origins=config.allowed_origins)
 
@@ -88,6 +89,8 @@ def create_app(
     app.include_router(settings.router, prefix="/api/v1")
     app.include_router(notebooks.router, prefix="/api/v1")
     app.include_router(sources.router, prefix="/api/v1")
+    app.include_router(chat.router, prefix="/api/v1")
+    app.include_router(search.router, prefix="/api/v1")
 
     if (frontend_dist / "index.html").exists():
         app.mount("/assets", StaticFiles(directory=frontend_dist / "assets"), name="assets")

@@ -38,7 +38,11 @@ class NotebookStore:
 
     def open(self, notebook_id: str) -> sqlite3.Connection:
         """Connection to a notebook's database. Raises NotFound if it is not registered."""
-        self.get(notebook_id)
+        conn = self._app()
+        try:
+            self._row(conn, notebook_id)
+        finally:
+            conn.close()
         return db.connect(self.db_path(notebook_id))
 
     # --- registry -------------------------------------------------------------------------
@@ -89,7 +93,14 @@ class NotebookStore:
 
     @staticmethod
     def _folder_size(folder: Path) -> int:
-        return sum(p.stat().st_size for p in folder.rglob("*") if p.is_file())
+        total = 0
+        for p in folder.rglob("*"):
+            try:  # SQLite's -wal/-shm files can appear and vanish while we count
+                if p.is_file():
+                    total += p.stat().st_size
+            except OSError:
+                continue
+        return total
 
     def create(self, name: str) -> dict:
         notebook_id = new_id()

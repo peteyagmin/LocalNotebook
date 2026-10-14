@@ -5,7 +5,8 @@ edit it except to tick milestone boxes in §12. Stop after each milestone for ow
 
 ## Current status
 
-M0 accepted. M1 (notebooks and core ingestion) implemented, awaiting owner acceptance. Next: M2.
+M0 and M1 accepted. M2 (grounded chat) implemented, awaiting owner acceptance. Next: M3.
+FR-3.6 (Save to note) and the notes half of FR-7.1 were deferred to M3 by the owner's decision.
 
 ## Architecture (as built)
 
@@ -53,6 +54,32 @@ M0 accepted. M1 (notebooks and core ingestion) implemented, awaiting owner accep
   (accepts a `highlight` range for citations, used from M2), `hooks/useSources`.
 - Tests build PDFs/DOCX in code (`tests/conftest.make_pdf`, `make_docx`) rather than committing
   binary fixtures.
+
+## M2 additions
+
+- `app/chat/` (new package): `service.stream_answer` is an async generator of events
+  (`user_message`, `sources`, `token`, `done`, `suggestions`, `error`) streamed over SSE by
+  `POST /notebooks/{id}/chat`. `citations.CitationFilter` removes labels that were not supplied,
+  while streaming, so stored text equals shown text. `strip_citations` cleans history replays.
+- Retrieval: `retrieval/hybrid.py` (FTS5 BM25 top 20 + vector top 20, RRF k=60, top
+  `retrieval_top_k`=8, enabled+ready sources only). `VectorIndex.search` uses sqlite-vec with
+  cosine distance (tables from M1 are upgraded once, in place) and falls back to NumPy brute force.
+  The `retrieve()` result also feeds `/notebooks/{id}/search` (keyword-only if embeddings fail).
+- Prompting (SR-3): `backend/app/prompts/chat_*.txt`, `style_*.txt`. Passages are wrapped in
+  delimiters carrying a per-request random nonce. "6 turns of history" is read as 6 user+assistant
+  pairs. The refusal sentence is `service.REFUSAL`; no enabled sources never calls the model.
+- Stop: `POST /chat/stop` sets an `asyncio.Event` kept in `app.state.chat_stops[notebook_id]`; the
+  generator races it against the next token. A dropped client connection also saves the partial
+  answer as `stopped`. Assistant messages store a snapshot of cited chunks, so chips survive source
+  deletion (shown as removed).
+- Frontend: `hooks/useChat`, `components/{ChatPane,AnswerText,CitationChip,SearchBox}`.
+  `AnswerText` uses react-markdown with HTML skipped and images dropped; `[n]` becomes a
+  `cite:` link rendered as a chip. Viewer state (`ViewTarget`) lives in `NotebookPage`, so chat
+  citations and search results both open the viewer with a highlight.
+- `evals/run_eval.py` is the QA-4 harness (`--selftest` runs it with an oracle model; covered by
+  `test_eval.py`).
+- DB writes that may race (index writes) use `BEGIN IMMEDIATE`; `NotebookStore.open()` only checks
+  the registry (no directory scan) because it is called on hot paths.
 
 ## Conventions
 

@@ -1,16 +1,26 @@
 import { useCallback, useState } from 'react'
 import type { Source } from '../api'
-import { SourceViewer } from '../components/SourceViewer'
-import { SourcesPane } from '../components/SourcesPane'
-import { useSources } from '../hooks/useSources'
+import { ChatPane } from '../components/ChatPane'
 import { Pane } from '../components/Pane'
 import { Resizer } from '../components/Resizer'
+import { SourcesPane } from '../components/SourcesPane'
+import { SourceViewer, type ViewTarget } from '../components/SourceViewer'
+import { useSources } from '../hooks/useSources'
 
-export function Workspace({ notebookId }: { notebookId: string }) {
+interface WorkspaceProps {
+  notebookId: string
+  viewing: ViewTarget | null
+  onView: (target: ViewTarget | null) => void
+}
+
+export function Workspace({ notebookId, viewing, onView }: WorkspaceProps) {
   const { sources, setSources, refresh, error } = useSources(notebookId)
-  const [viewing, setViewing] = useState<string | null>(null)
-  const closeViewer = useCallback(() => setViewing(null), [])
-  const viewed: Source | undefined = sources?.find((s) => s.id === viewing)
+  const closeViewer = useCallback(() => onView(null), [onView])
+  const viewed: Source | undefined = sources?.find((s) => s.id === viewing?.sourceId)
+  const sourcesKey = (sources ?? [])
+    .filter((s) => s.enabled && s.state === 'ready')
+    .map((s) => s.id)
+    .join(',')
   const [left, setLeft] = useState({ width: 280, collapsed: false })
   const [right, setRight] = useState({ width: 320, collapsed: false })
 
@@ -33,7 +43,7 @@ export function Workspace({ notebookId }: { notebookId: string }) {
           sources={sources}
           setSources={setSources}
           refresh={refresh}
-          onOpen={(s) => setViewing(s.id)}
+          onOpen={(s) => onView({ sourceId: s.id })}
         />
       </Pane>
       {!left.collapsed && (
@@ -46,17 +56,26 @@ export function Workspace({ notebookId }: { notebookId: string }) {
           onChange={(width) => setLeft({ ...left, width })}
         />
       )}
-      <Pane
-        title="Chat"
-        side="center"
-        collapsed={false}
-        onToggle={() => {}}
-        overlay={
-          viewed && <SourceViewer notebookId={notebookId} source={viewed} onClose={closeViewer} />
+      <ChatPane
+        notebookId={notebookId}
+        sourcesKey={sourcesKey}
+        onOpenCitation={(c) =>
+          onView({
+            sourceId: c.source_id,
+            highlight: { start: c.location.char_start, end: c.location.char_end },
+          })
         }
-      >
-        <p className="text-neutral-500">Nothing here yet.</p>
-      </Pane>
+        overlay={
+          viewed && (
+            <SourceViewer
+              notebookId={notebookId}
+              source={viewed}
+              highlight={viewing?.highlight}
+              onClose={closeViewer}
+            />
+          )
+        }
+      />
       {!right.collapsed && (
         <Resizer
           label="Resize Studio pane"

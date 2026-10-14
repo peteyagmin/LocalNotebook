@@ -11,6 +11,7 @@ export interface Settings {
   setup_completed: boolean
   max_sources_per_notebook: number
   max_upload_mb: number
+  retrieval_top_k: number
 }
 
 export interface SetupCheck {
@@ -57,6 +58,54 @@ export interface SourceContent {
   text: string
   segments: { start: number; end: number; page: number | null; heading_path: string[] | null }[]
   page_count: number | null
+}
+
+export interface Citation {
+  label: number
+  chunk_id: string
+  source_id: string
+  source_name: string
+  excerpt: string
+  location: {
+    page: number | null
+    heading_path: string[] | null
+    char_start: number
+    char_end: number
+  }
+  removed?: boolean
+}
+
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  citations: Citation[]
+  suggestions: string[]
+  status: 'complete' | 'stopped' | 'error'
+  created_at: string
+}
+
+export type ChatEvent =
+  | { type: 'user_message'; message: ChatMessage }
+  | { type: 'sources'; citations: Citation[] }
+  | { type: 'token'; text: string }
+  | { type: 'done'; message: ChatMessage }
+  | { type: 'suggestions'; message_id: string; questions: string[] }
+  | { type: 'error'; code: string; message: string }
+
+export interface ChatSettings {
+  response_style: 'default' | 'concise' | 'detailed' | 'learning_guide'
+  custom_instruction: string
+}
+
+export interface SearchResult {
+  chunk_id: string
+  source_id: string
+  source_name: string
+  location: Citation['location']
+  excerpt: string
+  char_start: number
+  char_end: number
 }
 
 export class ApiError extends Error {
@@ -122,9 +171,19 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 /** Read a Server-Sent Events stream with fetch (EventSource cannot send the auth header). */
-async function stream<T>(path: string, onEvent: (data: T) => void, signal: AbortSignal) {
+async function stream<T>(
+  path: string,
+  onEvent: (data: T) => void,
+  signal: AbortSignal,
+  body?: unknown,
+) {
   const resp = await fetch(`/api/v1${path}`, {
-    headers: { Authorization: `Bearer ${token()}` },
+    method: body === undefined ? 'GET' : 'POST',
+    headers: {
+      Authorization: `Bearer ${token()}`,
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
     signal,
   })
   await throwIfError(resp)
@@ -173,6 +232,17 @@ export const api = {
     request<Source>('POST', `${nb(id)}/sources/${sourceId}/retry`),
   deleteSource: (id: string, sourceId: string) =>
     request<void>('DELETE', `${nb(id)}/sources/${sourceId}`),
+  getChat: (id: string) => request<ChatMessage[]>('GET', `${nb(id)}/chat`),
+  clearChat: (id: string) => request<void>('DELETE', `${nb(id)}/chat`),
+  askStream: (id: string, question: string, onEvent: (e: ChatEvent) => void, signal: AbortSignal) =>
+    stream<ChatEvent>(`${nb(id)}/chat`, onEvent, signal, { question }),
+  stopChat: (id: string) => request<void>('POST', `${nb(id)}/chat/stop`),
+  getStarters: (id: string) => request<{ questions: string[] }>('GET', `${nb(id)}/chat/starters`),
+  getChatSettings: (id: string) => request<ChatSettings>('GET', `${nb(id)}/chat/settings`),
+  putChatSettings: (id: string, settings: ChatSettings) =>
+    request<ChatSettings>('PUT', `${nb(id)}/chat/settings`, settings),
+  search: (id: string, q: string) =>
+    request<SearchResult[]>('GET', `${nb(id)}/search?q=${encodeURIComponent(q)}`),
   getSourceContent: (id: string, sourceId: string) =>
     request<SourceContent>('GET', `${nb(id)}/sources/${sourceId}/content`),
 

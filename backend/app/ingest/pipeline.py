@@ -77,6 +77,9 @@ def build_chunks(extracted: dict) -> list[Chunk]:
 def write_index(conn, source_id: str, chunks: list[Chunk], vectors: list[list[float]]) -> list[str]:
     """Replace a source's chunks, FTS rows and vectors in one transaction (DR-6)."""
     index = VectorIndex(conn)
+    # Take the write lock first: two sources finishing together must not both try to create the
+    # vector table.
+    conn.execute("BEGIN IMMEDIATE")
     with conn:
         old = [
             r["id"] for r in conn.execute("SELECT id FROM chunks WHERE source_id = ?", (source_id,))

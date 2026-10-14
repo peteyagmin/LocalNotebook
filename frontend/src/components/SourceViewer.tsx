@@ -6,6 +6,11 @@ export interface Highlight {
   end: number
 }
 
+export interface ViewTarget {
+  sourceId: string
+  highlight?: Highlight
+}
+
 interface SourceViewerProps {
   notebookId: string
   source: Source

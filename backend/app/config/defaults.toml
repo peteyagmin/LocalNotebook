@@ -10,3 +10,4 @@ llm_api_key = ""
 setup_completed = false
 max_sources_per_notebook = 50
 max_upload_mb = 200
+retrieval_top_k = 8

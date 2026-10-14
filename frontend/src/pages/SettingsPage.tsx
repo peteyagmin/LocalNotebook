@@ -19,6 +19,7 @@ const FIELDS: { key: EditableKey; label: string; type?: 'password' | 'number' }[
   { key: 'tts_voice_b', label: 'Voice for Host B' },
   { key: 'max_sources_per_notebook', label: 'Maximum sources per notebook', type: 'number' },
   { key: 'max_upload_mb', label: 'Maximum file size (MB)', type: 'number' },
+  { key: 'retrieval_top_k', label: 'Passages used per answer', type: 'number' },
 ]
 
 export function SettingsPage({ settings, onSettingsChange, onClose }: SettingsPageProps) {

@@ -12,6 +12,7 @@ export const baseSettings: Settings = {
   setup_completed: true,
   max_sources_per_notebook: 50,
   max_upload_mb: 200,
+  retrieval_top_k: 8,
 }
 
 type Handler = (body: unknown, url: string) => unknown
@@ -37,8 +38,9 @@ export function mockBackend(routes: Routes) {
       for (const [key, value] of Object.entries(routes)) {
         const [m, pattern] = key.split(' ')
         const re = new RegExp('^' + pattern.replace(/:\w+/g, '[^/]+') + '$')
-        if (m === method && re.test(path)) {
+        if (m === method && re.test(path.split('?')[0])) {
           const result = typeof value === 'function' ? (value as Handler)(body, path) : value
+          if (result instanceof Response) return result
           if (result === undefined) return new Response(null, { status: 204 })
           return new Response(JSON.stringify(result), { status: 200 })
         }
@@ -83,3 +85,52 @@ export const notebook = (over = {}) => ({
   size_bytes: 2048,
   ...over,
 })
+
+const encoder = new TextEncoder()
+
+/** A Server-Sent Events response that has already finished. */
+export function sseResponse(events: unknown[]): Response {
+  const body = events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join('')
+  return new Response(body, { status: 200 })
+}
+
+/** An SSE response that stays open until `push`/`close` are called (to test Stop). */
+export function openSse() {
+  let controller!: ReadableStreamDefaultController<Uint8Array>
+  const stream = new ReadableStream<Uint8Array>({
+    start(c) {
+      controller = c
+    },
+  })
+  return {
+    response: new Response(stream, { status: 200 }),
+    push: (event: unknown) =>
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`)),
+    close: () => controller.close(),
+  }
+}
+
+export function chatMessage(
+  over: Partial<import('../api').ChatMessage> = {},
+): import('../api').ChatMessage {
+  return {
+    id: 'm1',
+    role: 'assistant',
+    content: 'Zebras graze [1].',
+    citations: [
+      {
+        label: 1,
+        chunk_id: 'c1',
+        source_id: 's1',
+        source_name: 'Doc.pdf',
+        excerpt: 'Zebras graze on grass in herds.',
+        location: { page: 1, heading_path: null, char_start: 0, char_end: 31 },
+        removed: false,
+      },
+    ],
+    suggestions: [],
+    status: 'complete',
+    created_at: '2026-10-14T00:00:00Z',
+    ...over,
+  }
+}

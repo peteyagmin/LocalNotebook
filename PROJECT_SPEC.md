@@ -359,7 +359,7 @@ Complete in order. **Stop after each milestone for owner testing.** Tick boxes o
 * \[x] **M0 — Skeleton**
 Repo layout, tooling, `scripts/run` and `scripts/dev`, health endpoint, empty three-pane UI, settings storage, setup wizard checks (FR-8.3), fake LLM client, CI commands, `README.md`, `CLAUDE.md`, `THIRD\\\_PARTY\\\_LICENSES.md`.
 *Accept:* app launches with one command on the owner's machine; wizard correctly reports Ollama/Tesseract/ffmpeg presence; all tests pass.
-* \[ ] **M1 — Notebooks \& core ingestion**
+* \[x] **M1 — Notebooks \& core ingestion**
 FR-1.1, FR-1.2, FR-1.4; FR-2.1 (PDF, DOCX, TXT, MD, pasted text only), FR-2.3–FR-2.8; DR-1–DR-6.
 *Accept:* upload each supported type and view its extracted text; enable/disable works; failures show retry; restart preserves everything.
 * \[ ] **M2 — Grounded chat**

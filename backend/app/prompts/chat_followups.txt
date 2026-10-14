@@ -1,0 +1,12 @@
+A user asked a question about their notebook and received an answer based on their documents.
+
+Suggest up to 3 short follow-up questions the user might ask next. Each must be answerable from documents like the ones used, and must be different from the question already asked.
+
+Question asked:
+$question
+
+Answer given:
+$answer
+
+Respond with only a JSON object in exactly this shape, with no other text:
+{"questions": ["...", "...", "..."]}

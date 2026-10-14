@@ -1,10 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, type Notebook } from '../api'
+import { SearchBox } from '../components/SearchBox'
+import type { ViewTarget } from '../components/SourceViewer'
 import { Workspace } from './Workspace'
 
 export function NotebookPage({ notebookId }: { notebookId: string }) {
   const [notebook, setNotebook] = useState<Notebook | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [viewing, setViewing] = useState<ViewTarget | null>(null)
+  const searchRef = useRef<HTMLInputElement>(null) as React.RefObject<HTMLInputElement>
 
   useEffect(() => {
     api
@@ -12,6 +16,18 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
       .then(setNotebook)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
   }, [notebookId])
+
+  // Ctrl/Cmd+K focuses search (spec 5.2).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        searchRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   if (error)
     return (
@@ -28,8 +44,18 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
           ← Notebooks
         </a>
         <h1 className="font-semibold">{notebook.name}</h1>
+        <SearchBox
+          notebookId={notebookId}
+          inputRef={searchRef}
+          onOpen={(r) =>
+            setViewing({
+              sourceId: r.source_id,
+              highlight: { start: r.char_start, end: r.char_end },
+            })
+          }
+        />
       </div>
-      <Workspace notebookId={notebookId} />
+      <Workspace notebookId={notebookId} viewing={viewing} onView={setViewing} />
     </div>
   )
 }

@@ -26,6 +26,7 @@ class SettingsUpdate(BaseModel):
     setup_completed: bool | None = None
     max_sources_per_notebook: int | None = Field(default=None, ge=1)
     max_upload_mb: int | None = Field(default=None, ge=1)
+    retrieval_top_k: int | None = Field(default=None, ge=1, le=20)
 
 
 @router.get("/settings")
