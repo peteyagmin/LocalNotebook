@@ -7,26 +7,31 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from app.api.deps import get_runner, get_settings, get_store
+from app.api.deps import get_runner, get_services, get_settings, get_store
 from app.core.errors import AppError
 from app.core.ids import new_id
 from app.core.notebooks import NotebookStore
-from app.ingest import service
+from app.ingest import safe_fetch, service
 from app.ingest.extract import read_extracted
 from app.ingest.parsers import SUPPORTED_EXTENSIONS
 from app.ingest.pipeline import extracted_path
+from app.ingest.youtube import choose_language_order, is_youtube_url, parse_video_id
 
 router = APIRouter()
 
-SUPPORTED_HINT = "Supported types: PDF, DOCX, TXT, Markdown."
+SUPPORTED_HINT = "Supported types: PDF, DOCX, TXT, Markdown, HTML, EPUB, PNG, JPG, MP3, WAV, M4A."
 COPY_BLOCK = 1024 * 1024
 
 
 class PastedText(BaseModel):
     name: str | None = None
     text: str
+
+
+class UrlImport(BaseModel):
+    urls: list[str] = Field(min_length=1, max_length=50)
 
 
 class EnabledBody(BaseModel):
@@ -273,3 +278,79 @@ def delete_source(
     finally:
         conn.close()
     return Response(status_code=204)
+
+
+@router.post("/notebooks/{notebook_id}/sources/urls", status_code=202)
+async def import_urls(
+    notebook_id: str,
+    body: UrlImport,
+    request: Request,
+    store: NotebookStore = Depends(get_store),
+    runner=Depends(get_runner),
+    settings: dict = Depends(get_settings),
+    services=Depends(get_services),
+) -> list[dict]:
+    """Import web pages and YouTube videos (FR-2.9, FR-2.10). Every address is checked before
+    anything is created (SR-4); a YouTube address becomes a video source."""
+    if not settings["allow_web_import"]:
+        raise AppError(403, "network_disabled", "Importing from the web is turned off in Settings.")
+    urls = list(dict.fromkeys(u.strip() for u in body.urls if u.strip()))
+    if not urls:
+        raise AppError(400, "no_urls", "Enter at least one web address.")
+    languages = choose_language_order(request.headers.get("accept-language"))
+    conn = store.open(notebook_id)
+    try:
+        _check_capacity(conn, settings, len(urls))
+        items: list[dict] = []
+        for url in urls:
+            try:
+                if is_youtube_url(url):
+                    video_id = parse_video_id(url)
+                    items.append(
+                        dict(
+                            source_type="youtube",
+                            name=f"YouTube video {video_id}",
+                            url=f"https://www.youtube.com/watch?v={video_id}",
+                            meta={"video_id": video_id, "languages": languages},
+                        )
+                    )
+                else:
+                    await services.check_url(url)
+                    items.append(dict(source_type="web", name=url, url=url, meta=None))
+            except (safe_fetch.UnsafeURL, safe_fetch.FetchError) as e:
+                raise AppError(400, "unsafe_url", str(e)) from e
+        created = []
+        for item in items:
+            source_id = new_id()
+            store.source_dir(notebook_id, source_id).mkdir(parents=True)
+            created.append(dict(source_id=source_id, original_name=None, size_bytes=0, **item))
+        return _create_and_queue(store, runner, notebook_id, conn, created)
+    finally:
+        conn.close()
+
+
+@router.post("/notebooks/{notebook_id}/sources/{source_id}/refresh", status_code=202)
+def refresh_source(
+    notebook_id: str,
+    source_id: str,
+    store: NotebookStore = Depends(get_store),
+    runner=Depends(get_runner),
+    settings: dict = Depends(get_settings),
+) -> dict:
+    """Re-fetch a web source. The previous capture is kept as an earlier version (FR-2.9)."""
+    if not settings["allow_web_import"]:
+        raise AppError(403, "network_disabled", "Importing from the web is turned off in Settings.")
+    conn = store.open(notebook_id)
+    try:
+        source = service.get_source(conn, source_id)
+        if source["type"] not in ("web", "youtube"):
+            raise AppError(400, "not_refreshable", "Only web pages and videos can be refreshed.")
+        if source["state"] not in ("ready", "failed"):
+            raise AppError(409, "busy", "Wait for this source to finish processing first.")
+        if source["state"] == "ready":
+            service.archive_current_version(store, notebook_id, conn, source_id)
+        (store.source_dir(notebook_id, source_id) / "original.html").unlink(missing_ok=True)
+        runner.submit_ingest(notebook_id, source_id)
+        return service.get_source(conn, source_id)
+    finally:
+        conn.close()

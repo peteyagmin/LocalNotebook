@@ -19,7 +19,11 @@ def make_client(tmp_path):
     """Build a client (lifespan running) on tmp_path. Calling it twice simulates a restart."""
     stack = ExitStack()
 
-    def _make(fake: FakeLLMClient | None = None, llm_override: str | None = None):
+    def _make(
+        fake: FakeLLMClient | None = None,
+        llm_override: str | None = None,
+        **app_kwargs,
+    ):
         fake = fake or FakeLLMClient(default_reply=GUIDE_JSON)
         config = RuntimeConfig(
             data_root=tmp_path,
@@ -29,7 +33,11 @@ def make_client(tmp_path):
             allowed_origins=frozenset({ORIGIN}),
         )
         app = create_app(
-            config, token=TOKEN, llm_factory=lambda _s: fake, frontend_dist=tmp_path / "x"
+            config,
+            token=TOKEN,
+            llm_factory=lambda _s: fake,
+            frontend_dist=tmp_path / "x",
+            **app_kwargs,
         )
         client = TestClient(app, headers={"Authorization": f"Bearer {TOKEN}"})
         stack.enter_context(client)

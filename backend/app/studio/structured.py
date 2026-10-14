@@ -88,6 +88,32 @@ class Flashcards(BaseModel):
         return v[:MAX_FLASHCARDS]
 
 
+# A small notebook cannot support a full-size quiz, so the counts scale with the amount of
+# material, up to the spec's 10 questions (FR-5.7). Owner-approved at M5.
+def flashcard_target(tokens: int) -> int:
+    return max(4, min(15, tokens // 60))
+
+
+def quiz_count(tokens: int) -> int:
+    return max(3, min(QUIZ_QUESTIONS, tokens // 150))
+
+
+def make_flashcards_schema(tokens: int) -> type[BaseModel]:
+    minimum = max(2, min(5, flashcard_target(tokens) - 2))
+
+    class SizedFlashcards(BaseModel):
+        flashcards: list[Flashcard]
+
+        @field_validator("flashcards")
+        @classmethod
+        def _enough(cls, v: list[Flashcard]) -> list[Flashcard]:
+            if len(v) < minimum:
+                raise ValueError(f"write at least {minimum} flashcards")
+            return v[:MAX_FLASHCARDS]
+
+    return SizedFlashcards
+
+
 class QuizQuestion(Sourced):
     question: str
     options: list[str]
@@ -109,15 +135,20 @@ class QuizQuestion(Sourced):
         return v
 
 
-class Quiz(BaseModel):
-    quiz: list[QuizQuestion]
+def make_quiz_schema(tokens: int) -> type[BaseModel]:
+    count = quiz_count(tokens)
 
-    @field_validator("quiz")
-    @classmethod
-    def _ten(cls, v: list[QuizQuestion]) -> list[QuizQuestion]:
-        if len(v) < QUIZ_QUESTIONS:
-            raise ValueError(f"write exactly {QUIZ_QUESTIONS} questions")
-        return v[:QUIZ_QUESTIONS]
+    class SizedQuiz(BaseModel):
+        quiz: list[QuizQuestion]
+
+        @field_validator("quiz")
+        @classmethod
+        def _exact(cls, v: list[QuizQuestion]) -> list[QuizQuestion]:
+            if len(v) < count:
+                raise ValueError(f"write exactly {count} questions")
+            return v[:count]
+
+    return SizedQuiz
 
 
 MindNode.model_rebuild()
@@ -126,14 +157,22 @@ MindNode.model_rebuild()
 @dataclass(frozen=True)
 class Part:
     prompt: str  # prompt file with the task
-    schema: type[BaseModel]
+    make_schema: Callable[[int], type[BaseModel]]  # given the size of the material in tokens
+    prompt_vars: Callable[[int], dict[str, str]] = lambda tokens: {}
 
 
 # Each structured kind is built from one or more validated parts, merged into one document.
 PARTS: dict[str, list[Part]] = {
-    "timeline": [Part("artifact_timeline", Timeline)],
-    "mind_map": [Part("artifact_mind_map", MindMap)],
-    "flashcards": [Part("artifact_flashcards", Flashcards), Part("artifact_quiz", Quiz)],
+    "timeline": [Part("artifact_timeline", lambda t: Timeline)],
+    "mind_map": [Part("artifact_mind_map", lambda t: MindMap)],
+    "flashcards": [
+        Part(
+            "artifact_flashcards",
+            make_flashcards_schema,
+            lambda t: {"count": str(flashcard_target(t))},
+        ),
+        Part("artifact_quiz", make_quiz_schema, lambda t: {"count": str(quiz_count(t))}),
+    ],
 }
 
 
@@ -204,9 +243,14 @@ def clean(kind: str, parts: list[BaseModel], valid: set[int]) -> dict:
         return {"root": _trim_to_node_limit(_prune_node(mm.root, valid, 1))}
     if kind == "flashcards":
         cards, quiz = parts
-        assert isinstance(cards, Flashcards) and isinstance(quiz, Quiz)
-        flash = [{**c.model_dump(), "sources": _keep(c.sources, valid)} for c in cards.flashcards]
-        questions = [{**q.model_dump(), "sources": _keep(q.sources, valid)} for q in quiz.quiz]
+        flash = [
+            {**c.model_dump(), "sources": _keep(c.sources, valid)}
+            for c in cards.flashcards  # type: ignore[attr-defined]
+        ]
+        questions = [
+            {**q.model_dump(), "sources": _keep(q.sources, valid)}
+            for q in quiz.quiz  # type: ignore[attr-defined]
+        ]
         return {
             "flashcards": [c for c in flash if c["sources"]],
             "quiz": [q for q in questions if q["sources"]],
@@ -242,15 +286,16 @@ async def build_data(
     kind: str,
     llm: LLMClient,
     model: str,
-    make_messages: Callable[[str], list[Message]],
+    make_messages: Callable[[str, dict[str, str]], list[Message]],
     run: Callable[[Awaitable], Awaitable],
     valid: set[int],
+    material_tokens: int,
 ) -> dict:
     """Generate each part (retrying invalid JSON, FR-5.10) and clean the merged result.
     `run` wraps every awaited call so the job can be cancelled between and during calls."""
     results: list[BaseModel] = []
     for part in PARTS[kind]:
-        results.append(
-            await run(generate_json(llm, model, make_messages(part.prompt), part.schema))
-        )
+        messages = make_messages(part.prompt, part.prompt_vars(material_tokens))
+        schema = part.make_schema(material_tokens)
+        results.append(await run(generate_json(llm, model, messages, schema)))
     return clean(kind, results, valid)

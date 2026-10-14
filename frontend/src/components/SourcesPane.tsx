@@ -1,13 +1,24 @@
 import { useRef, useState } from 'react'
 import { api, type Source } from '../api'
+import { useCapabilities } from '../hooks/useCapabilities'
+import { formatDate } from '../format'
+import { DiscoverDialog, PasteDialog, WebsiteDialog, YouTubeDialog } from './AddSourceDialogs'
 
-const TYPE_LABEL: Record<Source['type'], string> = {
-  pdf: 'PDF',
-  docx: 'DOCX',
-  txt: 'TXT',
-  md: 'MD',
-  text: 'Text',
+const TYPE_LABEL: Record<Source['type'], { text: string; icon: string }> = {
+  pdf: { text: 'PDF', icon: '' },
+  docx: { text: 'DOCX', icon: '' },
+  txt: { text: 'TXT', icon: '' },
+  md: { text: 'MD', icon: '' },
+  text: { text: 'Text', icon: '' },
+  html: { text: 'HTML', icon: '' },
+  epub: { text: 'EPUB', icon: '' },
+  image: { text: 'Image', icon: '' },
+  audio: { text: 'Audio', icon: '' },
+  web: { text: 'Web', icon: '🌐 ' },
+  youtube: { text: 'Video', icon: '▶ ' },
 }
+
+type Dialog = 'paste' | 'website' | 'youtube' | 'discover' | null
 
 interface SourcesPaneProps {
   notebookId: string
@@ -18,7 +29,9 @@ interface SourcesPaneProps {
 }
 
 const buttonClass =
-  'rounded border border-neutral-300 px-2 py-1 text-xs hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800'
+  'rounded border border-neutral-300 px-2 py-1 text-xs hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800'
+const menuItemClass =
+  'block w-full px-3 py-2 text-left hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-neutral-800'
 
 export function SourcesPane({
   notebookId,
@@ -29,10 +42,9 @@ export function SourcesPane({
 }: SourcesPaneProps) {
   const [error, setError] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [pasting, setPasting] = useState(false)
-  const [pasteName, setPasteName] = useState('')
-  const [pasteBody, setPasteBody] = useState('')
+  const [dialog, setDialog] = useState<Dialog>(null)
   const fileInput = useRef<HTMLInputElement>(null)
+  const { capabilities, refresh: refreshCapabilities } = useCapabilities()
 
   async function run(action: () => Promise<unknown>) {
     setError(null)
@@ -50,14 +62,25 @@ export function SourcesPane({
     if (fileInput.current) fileInput.current.value = ''
   }
 
-  async function submitPaste() {
-    await run(async () => {
-      await api.pasteText(notebookId, pasteName, pasteBody)
-      setPasting(false)
-      setPasteName('')
-      setPasteBody('')
-    })
+  const webOff = capabilities !== null && !capabilities.web_import
+  const discoverOff = capabilities !== null && !capabilities.discover.allowed
+  const closeDialog = () => setDialog(null)
+
+  function choose(item: Dialog | 'upload') {
+    setMenuOpen(false)
+    if (item === 'upload') fileInput.current?.click()
+    else if (item === 'discover' && capabilities && !capabilities.discover.configured) {
+      // No search provider yet: take the user to Settings with an explanation (FR-2.11).
+      window.location.hash = '#/settings?why=discover'
+    } else setDialog(item)
   }
+
+  const uploadHints = [
+    capabilities && !capabilities.ocr ? 'Images and scanned pages need Tesseract (not found).' : '',
+    capabilities && !capabilities.stt.installed
+      ? 'Audio needs a speech-to-text model (see Settings).'
+      : '',
+  ].filter(Boolean)
 
   return (
     <div className="space-y-3">
@@ -66,7 +89,10 @@ export function SourcesPane({
           type="button"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
-          onClick={() => setMenuOpen(!menuOpen)}
+          onClick={() => {
+            if (!menuOpen) refreshCapabilities()
+            setMenuOpen(!menuOpen)
+          }}
           className="w-full rounded bg-blue-600 px-3 py-1.5 text-sm text-white"
         >
           Add source
@@ -79,24 +105,68 @@ export function SourcesPane({
             <button
               role="menuitem"
               type="button"
-              className="block w-full px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
-              onClick={() => {
-                setMenuOpen(false)
-                fileInput.current?.click()
-              }}
+              className={menuItemClass}
+              onClick={() => choose('upload')}
             >
               Upload files
+              {uploadHints.map((h) => (
+                <span key={h} className="block text-xs text-neutral-500">
+                  {h}
+                </span>
+              ))}
             </button>
             <button
               role="menuitem"
               type="button"
-              className="block w-full px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
-              onClick={() => {
-                setMenuOpen(false)
-                setPasting(true)
-              }}
+              className={menuItemClass}
+              onClick={() => choose('paste')}
             >
               Paste text
+            </button>
+            <button
+              role="menuitem"
+              type="button"
+              className={menuItemClass}
+              disabled={webOff}
+              onClick={() => choose('website')}
+            >
+              Website
+              {webOff && (
+                <span className="block text-xs text-neutral-500">
+                  Turned off in Settings (Network).
+                </span>
+              )}
+            </button>
+            <button
+              role="menuitem"
+              type="button"
+              className={menuItemClass}
+              disabled={webOff}
+              onClick={() => choose('youtube')}
+            >
+              YouTube
+              {webOff && (
+                <span className="block text-xs text-neutral-500">
+                  Turned off in Settings (Network).
+                </span>
+              )}
+            </button>
+            <button
+              role="menuitem"
+              type="button"
+              className={menuItemClass}
+              disabled={discoverOff}
+              onClick={() => choose('discover')}
+            >
+              Discover
+              {discoverOff && (
+                <span className="block text-xs text-neutral-500">
+                  Turned off in Settings (Network).
+                </span>
+              )}
+              {capabilities?.discover.allowed && !capabilities.discover.configured && (
+                <span className="block text-xs text-neutral-500">Needs a search provider.</span>
+              )}
             </button>
           </div>
         )}
@@ -106,43 +176,22 @@ export function SourcesPane({
           multiple
           hidden
           aria-label="Choose files"
-          accept=".pdf,.docx,.txt,.md,.markdown"
+          accept=".pdf,.docx,.txt,.md,.markdown,.html,.htm,.epub,.png,.jpg,.jpeg,.mp3,.wav,.m4a"
           onChange={(e) => void upload(e.target.files)}
         />
       </div>
 
-      {pasting && (
-        <form
-          aria-label="Paste text"
-          className="space-y-2"
-          onSubmit={(e) => {
-            e.preventDefault()
-            void submitPaste()
-          }}
-        >
-          <input
-            aria-label="Title (optional)"
-            placeholder="Title (optional)"
-            value={pasteName}
-            onChange={(e) => setPasteName(e.target.value)}
-            className="w-full rounded border border-neutral-300 bg-transparent px-2 py-1 dark:border-neutral-700"
-          />
-          <textarea
-            aria-label="Text"
-            rows={6}
-            value={pasteBody}
-            onChange={(e) => setPasteBody(e.target.value)}
-            className="w-full rounded border border-neutral-300 bg-transparent px-2 py-1 dark:border-neutral-700"
-          />
-          <div className="flex gap-2">
-            <button type="submit" className={buttonClass}>
-              Add
-            </button>
-            <button type="button" className={buttonClass} onClick={() => setPasting(false)}>
-              Cancel
-            </button>
-          </div>
-        </form>
+      {dialog === 'paste' && (
+        <PasteDialog notebookId={notebookId} onDone={refresh} onClose={closeDialog} />
+      )}
+      {dialog === 'website' && (
+        <WebsiteDialog notebookId={notebookId} onDone={refresh} onClose={closeDialog} />
+      )}
+      {dialog === 'youtube' && (
+        <YouTubeDialog notebookId={notebookId} onDone={refresh} onClose={closeDialog} />
+      )}
+      {dialog === 'discover' && (
+        <DiscoverDialog notebookId={notebookId} onDone={refresh} onClose={closeDialog} />
       )}
 
       {error && (
@@ -181,73 +230,109 @@ export function SourcesPane({
       )}
 
       <ul className="space-y-2">
-        {sources?.map((s) => (
-          <li key={s.id} className="rounded border border-neutral-200 p-2 dark:border-neutral-800">
-            <div className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                checked={s.enabled}
-                aria-label={`Use ${s.name}`}
-                onChange={(e) =>
-                  void run(() => api.setSourceEnabled(notebookId, s.id, e.target.checked))
-                }
-                className="mt-1"
-              />
-              <span
-                className="rounded bg-neutral-200 px-1 text-xs dark:bg-neutral-800"
-                title="File type"
-              >
-                {TYPE_LABEL[s.type]}
-              </span>
-              <button
-                type="button"
-                onClick={() => onOpen(s)}
-                disabled={s.state !== 'ready'}
-                className="min-w-0 flex-1 truncate text-left hover:underline disabled:no-underline"
-              >
-                {s.name}
-              </button>
-              <button
-                type="button"
-                aria-label={`Remove ${s.name}`}
-                className="rounded px-1 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                onClick={() => {
-                  if (window.confirm(`Remove "${s.name}" from this notebook?`))
-                    void run(() => api.deleteSource(notebookId, s.id))
-                }}
-              >
-                ✕
-              </button>
-            </div>
-            {(s.state === 'queued' || s.state === 'processing') && (
-              <div className="mt-1">
-                <progress
-                  aria-label={`Processing ${s.name}`}
-                  value={s.progress}
-                  max={1}
-                  className="w-full"
+        {sources?.map((s) => {
+          const type = TYPE_LABEL[s.type]
+          return (
+            <li
+              key={s.id}
+              className="rounded border border-neutral-200 p-2 dark:border-neutral-800"
+            >
+              <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={s.enabled}
+                  aria-label={`Use ${s.name}`}
+                  onChange={(e) =>
+                    void run(() => api.setSourceEnabled(notebookId, s.id, e.target.checked))
+                  }
+                  className="mt-1"
                 />
-                <div className="text-xs text-neutral-500">
-                  {s.state === 'queued' ? 'Waiting…' : (s.stage ?? 'Processing…')}
-                </div>
-              </div>
-            )}
-            {s.state === 'failed' && (
-              <div className="mt-1 text-xs">
-                <p role="alert" className="text-red-600">
-                  {s.error}
-                </p>
+                <span
+                  className="rounded bg-neutral-200 px-1 text-xs dark:bg-neutral-800"
+                  title="Source type"
+                >
+                  <span aria-hidden="true">{type.icon}</span>
+                  {type.text}
+                </span>
                 <button
                   type="button"
-                  className={`${buttonClass} mt-1`}
-                  onClick={() => void run(() => api.retrySource(notebookId, s.id))}
+                  onClick={() => onOpen(s)}
+                  disabled={s.state !== 'ready'}
+                  className="min-w-0 flex-1 truncate text-left hover:underline disabled:no-underline"
                 >
-                  Retry
+                  {s.name}
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Remove ${s.name}`}
+                  className="rounded px-1 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  onClick={() => {
+                    if (window.confirm(`Remove "${s.name}" from this notebook?`))
+                      void run(() => api.deleteSource(notebookId, s.id))
+                  }}
+                >
+                  ✕
                 </button>
               </div>
-            )}
-          </li>
-        ))}
+              {s.url && (
+                <div className="mt-1 text-xs text-neutral-500">
+                  <a
+                    href={s.url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="block truncate underline"
+                  >
+                    {s.url}
+                  </a>
+                  {s.fetched_at && <span>Captured {formatDate(s.fetched_at)}</span>}
+                  {s.version_count > 0 && (
+                    <span>
+                      {' '}
+                      · {s.version_count} earlier {s.version_count === 1 ? 'version' : 'versions'}
+                    </span>
+                  )}
+                  {s.type === 'web' && s.state !== 'queued' && s.state !== 'processing' && (
+                    <button
+                      type="button"
+                      className={`${buttonClass} ml-2`}
+                      aria-label={`Refresh ${s.name} from web`}
+                      onClick={() => void run(() => api.refreshSource(notebookId, s.id))}
+                    >
+                      Refresh from web
+                    </button>
+                  )}
+                </div>
+              )}
+              {(s.state === 'queued' || s.state === 'processing') && (
+                <div className="mt-1">
+                  <progress
+                    aria-label={`Processing ${s.name}`}
+                    value={s.progress}
+                    max={1}
+                    className="w-full"
+                  />
+                  <div className="text-xs text-neutral-500">
+                    {s.state === 'queued' ? 'Waiting…' : (s.stage ?? 'Processing…')}
+                  </div>
+                </div>
+              )}
+              {s.state === 'failed' && (
+                <div className="mt-1 text-xs">
+                  <p role="alert" className="text-red-600">
+                    {s.error}
+                  </p>
+                  <button
+                    type="button"
+                    className={`${buttonClass} mt-1`}
+                    onClick={() => void run(() => api.retrySource(notebookId, s.id))}
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+            </li>
+          )
+        })}
       </ul>
     </div>
   )

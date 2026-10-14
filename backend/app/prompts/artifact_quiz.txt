@@ -1,4 +1,4 @@
-Write exactly 10 multiple-choice questions that test understanding of the material.
+Write exactly $count multiple-choice questions that test understanding of the material.
 
 Respond with a JSON object of exactly this shape:
 {"quiz": [{"question": "the question", "options": ["first option", "second option", "third option", "fourth option"], "correct_index": 2, "explanation": "one or two sentences saying why the answer is right", "sources": [1]}]}

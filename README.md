@@ -2,12 +2,14 @@
 
 Local, source-grounded research notebook. See `PROJECT_SPEC.md` for the full specification.
 
-**Status:** M4 implemented (structured artifacts). On top of M3 (notes and text documents) the Studio
-can now build a **timeline** (dated events plus key people, sorted by date), an interactive **mind
-map** (collapse and expand branches; clicking a node asks the chat about it), and **flashcards with a
-quiz** (flip cards, 10 multiple-choice questions with explanations and a final score). Exports:
-timeline as JSON/Markdown/Word/PDF, mind map as PNG/JSON, flashcards and quiz as CSV/JSON. The
-remaining source types (web, YouTube, audio, images) and audio overviews come in later milestones.
+**Status:** M5 implemented (remaining source types and the web). In addition to everything in M4 you
+can add **web pages** (several addresses at once; pages are saved and work offline; **Refresh from
+web** keeps the earlier capture), **YouTube videos** (captions; optionally local transcription of
+videos without captions), **HTML and EPUB files**, **images and scanned PDF pages** (read with
+Tesseract OCR), and **audio files** (transcribed locally), and **Discover** sources on a topic through
+your own SearXNG search server. Citations to audio and video show a timestamp, and cited video
+passages have an "Open in browser at this time" link. The audio overview (M6) and export/import
+(M7) are still to come.
 
 Ingesting a source calls your model server twice (embeddings, then a short source guide), so a chat
 model and an embedding model must be set in Settings first. Without them a source shows as failed
@@ -42,6 +44,20 @@ uv run pytest
 uv run ruff check
 cd frontend && npm test && npm run lint
 ```
+
+## Web, video, audio, and OCR
+
+- **Tesseract** (a separate program) is needed for images and scanned PDF pages. Without it the rest
+  works, and the setup wizard and the Add source menu say so.
+- **Audio and videos without captions** need a speech-to-text model: enter its name in Settings, then
+  press **Download model** (it asks first and shows progress). Models live in your data folder.
+- **Transcribe videos without captions** is off by default. Turning it on downloads only the audio,
+  transcribes it on your computer, and deletes the audio. You are responsible for complying with the
+  platform's terms of service.
+- **Discover** needs your own [SearXNG](https://docs.searxng.org) address with JSON output enabled
+  (Settings > Network). It suggests up to 10 pages or videos; nothing is imported until you tick them.
+- Web addresses on this computer or your local network are always refused. Each kind of network use
+  can be switched off in Settings > Network.
 
 ## Generated documents and large notebooks
 

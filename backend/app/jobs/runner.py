@@ -10,6 +10,7 @@ from app.core import db
 from app.core.ids import new_id, now_iso
 from app.core.notebooks import NotebookStore, NotFound
 from app.ingest.pipeline import run_ingest
+from app.ingest.services import Services
 from app.llm.base import LLMClient, LLMError
 from app.notes.service import embed_note
 from app.studio.generate import run_generation
@@ -27,8 +28,10 @@ class JobRunner:
         llm_factory: Callable[[dict], LLMClient],
         get_settings: Callable[[], dict],
         workers: int = 2,
+        services: Services | None = None,
     ):
         self.store = store
+        self.services = services or Services(models_dir=store.data_root / "models")
         self._llm_factory = llm_factory
         self._get_settings = get_settings
         self._worker_count = workers
@@ -196,6 +199,7 @@ class JobRunner:
                         target_id in self._cancelled_sources
                         or notebook_id in self._cancelled_notebooks
                     ),
+                    services=self.services,
                 )
             elif kind == "artifact":
                 cancel = asyncio.Event()

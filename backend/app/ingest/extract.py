@@ -28,6 +28,8 @@ def build_extracted(result: ParseResult) -> dict:
                 "end": pos + len(text),
                 "page": block.page,
                 "heading_path": block.heading_path,
+                "start_s": block.start_s,
+                "end_s": block.end_s,
             }
         )
         parts.append(text)

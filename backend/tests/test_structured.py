@@ -95,7 +95,7 @@ def test_flashcards_and_quiz_are_two_validated_parts_of_one_artifact(make_client
     assert a["title"] == "Flashcards & quiz"
     data = detail(client, nid, a)["data"]
     assert len(data["flashcards"]) == 6 and "Unsupported" not in json.dumps(data["flashcards"])
-    assert len(data["quiz"]) == 10  # 12 returned, trimmed to 10
+    assert len(data["quiz"]) == 3  # a tiny notebook gets a short quiz (see the sizing tests below)
     q = data["quiz"][2]
     assert len(q["options"]) == 4 and q["correct_index"] == 2 and q["explanation"] and q["sources"]
     assert len(prompts(fake, "flashcards that help")) == 1
@@ -103,6 +103,42 @@ def test_flashcards_and_quiz_are_two_validated_parts_of_one_artifact(make_client
 
 
 # --- validation and retry (FR-5.10) ----------------------------------------------------------
+
+
+BIG = {"big.txt": " ".join(f"Sentence number {i} is about zebras and herds." for i in range(400))}
+
+
+def test_a_full_size_notebook_gets_the_full_ten_question_quiz(make_client):
+    client, fake, nid = ready_notebook(make_client, BIG)
+    client.put("/api/v1/settings", json={"context_window_tokens": 200_000})
+    a = generate(client, nid, "flashcards")
+    assert len(detail(client, nid, a)["data"]["quiz"]) == 10
+    assert (
+        "exactly 10 multiple-choice questions"
+        in prompts(fake, "multiple-choice questions")[-1][-1]["content"]
+    )
+    assert "about 15 flashcards" in prompts(fake, "flashcards that help")[-1][-1]["content"]
+
+
+def test_small_notebooks_get_shorter_quizzes_and_fewer_cards():
+    sizes = {
+        t: (structured.quiz_count(t), structured.flashcard_target(t))
+        for t in (5, 300, 600, 900, 1500, 50_000)
+    }
+    assert sizes[5] == (3, 4)  # never fewer than 3 questions
+    assert sizes[300] == (3, 5) and sizes[600] == (4, 10) and sizes[900] == (6, 15)
+    assert sizes[1500] == (10, 15) and sizes[50_000] == (
+        10,
+        15,
+    )  # the spec's 10 from 1500 tokens up
+
+
+def test_the_requested_quiz_length_is_what_validation_enforces(make_client):
+    short = json.dumps({"quiz": QUIZ["quiz"][:2]})  # asked for 3
+    fake2 = scripted([short], "multiple-choice questions")
+    client2, fake2, nid2 = ready_notebook(make_client, fake=fake2)
+    assert generate(client2, nid2, "flashcards")["state"] == "ready"
+    assert any("write exactly 3 questions" in m[-1]["content"] for _, m in fake2.calls)
 
 
 def scripted(first_replies, key):
@@ -153,7 +189,8 @@ def test_quiz_with_wrong_option_count_is_rejected_and_retried(make_client):
 def test_quiz_with_too_few_questions_is_retried(make_client):
     short = json.dumps({"quiz": QUIZ["quiz"][:4]})
     fake = scripted([short], "multiple-choice questions")
-    client, fake, nid = ready_notebook(make_client, fake=fake)
+    client, fake, nid = ready_notebook(make_client, BIG, fake=fake)
+    client.put("/api/v1/settings", json={"context_window_tokens": 200_000})
     assert generate(client, nid, "flashcards")["state"] == "ready"
     assert any("write exactly 10 questions" in m[-1]["content"] for _, m in fake.calls)
 
@@ -243,9 +280,9 @@ def test_flashcards_and_quiz_export_csv_and_json(make_client):
         csv.reader(io.StringIO(export(client, nid, a, "csv-quiz").content.decode("utf-8-sig")))
     )
     assert quiz[0][:6] == ["question", "option_a", "option_b", "option_c", "option_d", "correct"]
-    assert len(quiz) == 11 and quiz[3][5] == "C" and quiz[3][6] == "Because."
+    assert len(quiz) == 4 and quiz[3][5] == "C" and quiz[3][6] == "Because."  # header + 3 questions
     doc = json.loads(export(client, nid, a, "json").content)
-    assert len(doc["data"]["quiz"]) == 10 and len(doc["data"]["flashcards"]) == 6
+    assert len(doc["data"]["quiz"]) == 3 and len(doc["data"]["flashcards"]) == 6
     assert export(client, nid, a, "pdf").status_code == 422
 
 

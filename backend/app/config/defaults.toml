@@ -12,3 +12,10 @@ max_sources_per_notebook = 50
 max_upload_mb = 200
 retrieval_top_k = 8
 context_window_tokens = 8000
+# Network (FR-8.6): each can be switched off. Nothing here is on by default except actions the
+# user starts themselves; Discover also needs a search provider URL.
+allow_web_import = true
+allow_discover = true
+allow_model_downloads = true
+transcribe_uncaptioned_videos = false
+searxng_url = ""

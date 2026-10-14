@@ -34,14 +34,20 @@ class Chunk:
     char_end: int
     page: int | None
     heading_path: list[str] | None
+    start_s: float | None = None
+    end_s: float | None = None
 
     def location(self) -> dict:
-        return {
+        location = {
             "page": self.page,
             "heading_path": self.heading_path,
             "char_start": self.char_start,
             "char_end": self.char_end,
         }
+        if self.start_s is not None:
+            location["start_seconds"] = self.start_s
+            location["end_seconds"] = self.end_s
+        return location
 
 
 @dataclass
@@ -106,6 +112,7 @@ def chunk_text(text: str, segments: list[dict]) -> list[Chunk]:
             j = last_para
         start, end = units[i].start, units[j - 1].end
         seg = segments[max(0, bisect.bisect_right(seg_starts, start) - 1)] if segments else {}
+        last = segments[max(0, bisect.bisect_right(seg_starts, end - 1) - 1)] if segments else {}
         chunks.append(
             Chunk(
                 ordinal=len(chunks),
@@ -114,6 +121,8 @@ def chunk_text(text: str, segments: list[dict]) -> list[Chunk]:
                 char_end=end,
                 page=seg.get("page"),
                 heading_path=seg.get("heading_path"),
+                start_s=seg.get("start_s"),
+                end_s=last.get("end_s"),
             )
         )
         if j >= n:

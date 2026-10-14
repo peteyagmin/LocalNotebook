@@ -130,6 +130,10 @@ def clear_chat(conn: sqlite3.Connection) -> None:
 
 
 def describe_location(location: dict) -> str:
+    if location.get("start_seconds") is not None:
+        from app.speech.stt import format_timestamp
+
+        return format_timestamp(location["start_seconds"])
     if location.get("page"):
         return f"page {location['page']}"
     if location.get("heading_path"):

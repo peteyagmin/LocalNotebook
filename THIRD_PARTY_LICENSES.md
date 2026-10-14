@@ -22,7 +22,26 @@ Only MIT, BSD, Apache-2.0, ISC, MPL-2.0, Unlicense, and PSF licenses are allowed
 | pillow (required by reportlab) | 12.3.0 | MIT-CMU (the HPND "PIL Software License"; not on the §0 list, approved by the owner on 2026-10-14) | M3 |
 | markdown-it-py | 4.2.0 | MIT (depends on mdurl 0.1.2, MIT) | M3 |
 | charset-normalizer (required by reportlab) | 3.5.2 | MIT | M3 |
+| trafilatura | 2.3.1 | Apache-2.0 | M5 |
+| youtube-transcript-api | 1.2.4 | MIT | M5 |
+| yt-dlp | 2026.8.19 | Unlicense | M5 |
+| faster-whisper | 1.2.1 | MIT | M5 |
+| pytesseract | 0.3.13 | Apache-2.0 | M5 |
 | numpy | 2.5.4 | BSD-3-Clause (wheel also bundles components under 0BSD, MIT, Zlib, CC0-1.0) | M2 |
+
+### Transitive dependencies added in M5 (checked from installed metadata)
+
+courlan 1.4.0 (Apache-2.0), htmldate 1.11.0 (Apache-2.0), jusText 3.0.2 (BSD), lxml-html-clean 0.4.5
+(BSD), dateparser 1.4.3 (BSD-3-Clause), ctranslate2 4.8.3 (MIT), onnxruntime 1.31.0 (MIT), av 19.0.1
+(BSD-3-Clause), huggingface-hub 2.2.0, tokenizers 0.23.3 and hf-xet 1.7.0 (Apache-2.0), defusedxml
+0.7.1 (PSF), protobuf (BSD-3-Clause), flatbuffers (Apache-2.0), requests (Apache-2.0), urllib3 (MIT),
+regex (Apache-2.0 AND CNRI-Python), tqdm (MPL-2.0 AND MIT), httpx2/httpcore2 (BSD-3-Clause), and small
+MIT/BSD utilities (PyYAML, filelock, fsspec, six, python-dateutil, pytz, tzlocal, babel, truststore).
+
+**`tld` 0.13.2** (pulled in by courlan, which trafilatura requires) is offered as "MPL-1.1 OR GPL-2.0-only
+OR LGPL-2.1-or-later". It is used here under its **MPL-1.1** option, as a library that is never
+modified. MPL-1.1 is not on the §0 list; the owner approved this on 2026-10-14. Do not upgrade to a
+version that drops the MPL option without re-checking.
 
 ## JavaScript (`frontend/package.json`)
 

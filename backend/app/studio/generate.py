@@ -213,11 +213,12 @@ async def run_generation(
                 kind,
                 llm,
                 model,
-                lambda prompt: build_messages(
-                    render_prompt(prompt), material, focus, system="artifact_system_json"
+                lambda prompt, extra: build_messages(
+                    render_prompt(prompt, **extra), material, focus, system="artifact_system_json"
                 ),
                 lambda awaitable: _race(awaitable, cancel),
                 {c["label"] for c in citations},
+                est_tokens(len(material)),
             )
             if is_empty(kind, data):
                 raise GenerationError(

@@ -14,17 +14,22 @@ from pathlib import Path
 from app.ingest.parsers import Block, ParseError, ParseResult, parse
 
 DEFAULT_TIMEOUT_S = 120
+# OCR and transcription are slow by nature, so those formats get far longer.
+TIMEOUTS_S = {"pdf": 1800, "image": 600, "epub": 300, "audio": 4 * 3600}
 MEMORY_LIMIT_BYTES = 2 * 1024**3
+NO_MEMORY_LIMIT = {"audio"}  # speech models need more than the cap
 
 
-def _child(conn: Connection, path: str, source_type: str, memory_limit: int) -> None:
+def _child(
+    conn: Connection, path: str, source_type: str, memory_limit: int | None, options: dict
+) -> None:
     try:
-        if sys.platform.startswith("linux"):  # RLIMIT_AS is not reliable on macOS/Windows
+        if memory_limit and sys.platform.startswith("linux"):  # not reliable on macOS/Windows
             import resource
 
             resource.setrlimit(resource.RLIMIT_AS, (memory_limit, memory_limit))
-        result = parse(Path(path), source_type)
-        conn.send(("ok", [asdict(b) for b in result.blocks], result.page_count))
+        result = parse(Path(path), source_type, options)
+        conn.send(("ok", [asdict(b) for b in result.blocks], result.page_count, result.title))
     except ParseError as e:
         conn.send(("error", str(e)))
     except MemoryError:
@@ -38,13 +43,20 @@ def _child(conn: Connection, path: str, source_type: str, memory_limit: int) -> 
 def run_parse(
     path: Path,
     source_type: str,
-    timeout: float = DEFAULT_TIMEOUT_S,
-    memory_limit: int = MEMORY_LIMIT_BYTES,
+    timeout: float | None = None,
+    memory_limit: int | None = MEMORY_LIMIT_BYTES,
+    options: dict | None = None,
 ) -> ParseResult:
+    if timeout is None:
+        timeout = TIMEOUTS_S.get(source_type, DEFAULT_TIMEOUT_S)
+    if source_type in NO_MEMORY_LIMIT:
+        memory_limit = None
     ctx = multiprocessing.get_context("spawn")
     parent, child = ctx.Pipe(duplex=False)
     proc = ctx.Process(
-        target=_child, args=(child, str(path), source_type, memory_limit), daemon=True
+        target=_child,
+        args=(child, str(path), source_type, memory_limit, options or {}),
+        daemon=True,
     )
     proc.start()
     child.close()
@@ -62,5 +74,5 @@ def run_parse(
         proc.join(5)
     if message[0] == "error":
         raise ParseError(message[1])
-    _, blocks, page_count = message
-    return ParseResult([Block(**b) for b in blocks], page_count)
+    _, blocks, page_count, title = message
+    return ParseResult([Block(**b) for b in blocks], page_count, title)

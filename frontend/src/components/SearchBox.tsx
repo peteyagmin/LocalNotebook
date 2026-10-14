@@ -1,15 +1,11 @@
 import { useEffect, useState, type RefObject } from 'react'
 import { api, type SearchResult } from '../api'
+import { describeLocation } from '../format'
 
 interface SearchBoxProps {
   notebookId: string
   inputRef: RefObject<HTMLInputElement>
   onOpen: (result: SearchResult) => void
-}
-
-function describe(location: SearchResult['location']): string {
-  if (location.page) return `page ${location.page}`
-  return location.heading_path?.join(' › ') ?? ''
 }
 
 /** Split `text` around the search terms so matches can be highlighted. */
@@ -109,8 +105,10 @@ export function SearchBox({ notebookId, inputRef, onOpen }: SearchBoxProps) {
                       Note
                     </span>
                   )}
-                  {describe(r.location) && (
-                    <span className="ml-2 text-xs text-neutral-500">{describe(r.location)}</span>
+                  {describeLocation(r.location) && (
+                    <span className="ml-2 text-xs text-neutral-500">
+                      {describeLocation(r.location)}
+                    </span>
                   )}
                   <span className="mt-0.5 line-clamp-3 block text-neutral-700 dark:text-neutral-300">
                     {highlightTerms(r.excerpt, query)}

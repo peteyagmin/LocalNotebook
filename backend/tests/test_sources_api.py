@@ -141,7 +141,7 @@ def test_enable_disable_and_select_all_none(configured, notebook):
 
 def test_unsupported_type_and_limits_rejected_before_work(configured, notebook):
     nid = notebook["id"]
-    r = upload(configured, nid, [("ok.txt", b"x"), ("pic.png", b"x")])
+    r = upload(configured, nid, [("ok.txt", b"x"), ("tool.exe", b"x")])
     assert r.status_code == 400 and r.json()["error"]["code"] == "unsupported_type"
     configured.put("/api/v1/settings", json={"max_upload_mb": 1})
     r = upload(configured, nid, [("big.txt", b"a" * (1024 * 1024 + 1))])

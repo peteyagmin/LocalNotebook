@@ -1,4 +1,4 @@
-Write about 15 flashcards that help someone study the material. Each card tests one fact, term, or idea.
+Write about $count flashcards that help someone study the material. Each card tests one fact, term, or idea.
 
 Respond with a JSON object of exactly this shape:
 {"flashcards": [{"front": "question or term", "back": "short answer or definition", "sources": [1]}]}

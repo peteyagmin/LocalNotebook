@@ -5,9 +5,9 @@ edit it except to tick milestone boxes in §12. Stop after each milestone for ow
 
 ## Current status
 
-M0-M3 accepted. M4 (structured artifacts) implemented, awaiting owner acceptance. Next: M5 (remaining
-source types, OCR, web import, Discover; ask the owner before adding Pillow-dependent pytesseract:
-Pillow is already approved, MIT-CMU).
+M0-M4 accepted. M5 (remaining source types, OCR, web import, YouTube, Discover) implemented,
+awaiting owner acceptance. Includes the owner-approved short quiz for small notebooks. Next: M6
+(audio overview: TTS, ffmpeg).
 
 ## Architecture (as built)
 
@@ -127,6 +127,36 @@ Pillow is already approved, MIT-CMU).
   `elementsSelectable={false}`, it makes nodes ignore clicks; refits on resize), `FlashcardsView`
   (CSS 3D flip, quiz with score). `onAskChat` sends the node question through `Workspace` ->
   `ChatPane.askRequest`. `src/test/setup.ts` stubs ResizeObserver/DOMMatrixReadOnly for React Flow.
+
+## M5 additions
+
+- Source types: `html`, `epub`, `image` (OCR), `audio` (STT), `web` (fetch + extract), `youtube`
+  (captions or local transcription). Migration 0004 adds `sources.url/fetched_at/meta` and
+  `source_versions` (archived captures of web sources; files under `sources/<id>/versions/<n>/`).
+- URL safety (SR-4), `ingest/safe_fetch.py`: syntax checks, DNS resolution with every address
+  checked, connection pinned to the checked IP (Host header + `sni_hostname` so TLS still verifies the
+  name), redirects followed by hand and re-checked, 20 MB cap. Used for web import and Discover
+  candidates. The user's own SearXNG address is *not* subject to it (it is usually on localhost).
+- `ingest/services.py` `Services` bundles fetch, URL check, YouTube backend, search provider and
+  models dir; tests substitute fakes (`tests/fakes.py`). `LNB_STT_FACTORY=module:function` swaps the
+  speech engine in the parser process (tests, development).
+- Parsers run in the sandbox with per-type timeouts (`TIMEOUTS_S`); audio has no memory cap. PDF pages
+  under 50 characters are OCR'd (`ingest/ocr.py`); images always. Timed text: `Block.start_s/end_s` ->
+  segments -> chunk `location.start_seconds/end_seconds`; `describe_location` prints `12:34`.
+- YouTube (`ingest/youtube.py`): caption order = human-made in the UI language (from the browser's
+  Accept-Language, saved in `meta.languages`), auto-generated in it, then other languages likewise.
+  Metadata failure falls back to a generic title. Downloaded audio is always deleted.
+- Speech models (`speech/stt.py`, `speech/models.py`): installed once `models/stt/<name>/model.bin`
+  exists (downloads go to `<name>.partial` first); the download endpoint is `async` because it starts an
+  asyncio task. Discover (`ingest/discover.py`): search -> fetch+extract (8 parallel, 15 s each) -> LLM
+  ranking (`discover_rank.txt`) -> up to 10; nothing is imported.
+- Network switches (FR-8.6): `allow_web_import`, `allow_discover`, `allow_model_downloads`
+  (enforced in the API and the pipeline) and `GET /capabilities` for the UI's explanations.
+- Short quiz: `quiz_count(tokens)` = clamp(tokens/150, 3, 10) and `flashcard_target` = clamp(tokens/60,
+  4, 15); the schema and prompt are built per run (`Part.make_schema` / `prompt_vars`).
+- Frontend: `AddSourceDialogs`, `useCapabilities`, viewer timestamps and YouTube links
+  (`&t=<seconds>s`), `describeLocation` (shared by chips and search), grouped Settings with the
+  speech-model download and progress.
 
 ## Conventions
 

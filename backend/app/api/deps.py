@@ -39,3 +39,7 @@ def get_store(request: Request):
 
 def get_runner(request: Request):
     return request.app.state.runner
+
+
+def get_services(request: Request):
+    return request.app.state.services

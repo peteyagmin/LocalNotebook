@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import shutil
 from collections.abc import Callable
 from pathlib import Path
 
@@ -15,8 +16,16 @@ from app.core.ids import new_id, now_iso
 from app.core.notebooks import NotebookStore, NotFound
 from app.ingest.chunker import Chunk, chunk_text
 from app.ingest.extract import build_extracted, read_extracted, write_extracted
-from app.ingest.parsers import ParseError
+from app.ingest.parsers import Block, ParseError, ParseResult
+from app.ingest.safe_fetch import FetchError, UnsafeURL
 from app.ingest.sandbox import run_parse
+from app.ingest.services import Services
+from app.ingest.youtube import (
+    NO_CAPTIONS_MESSAGE,
+    VideoInfo,
+    caption_blocks,
+    parse_video_id,
+)
 from app.llm.base import LLMClient, LLMError
 from app.llm.prompts import render_prompt
 from app.llm.structured import StructuredOutputError, generate_json
@@ -164,6 +173,92 @@ def _update_source(store: NotebookStore, notebook_id: str, source_id: str, **fie
         conn.close()
 
 
+def _meta(source: dict) -> dict:
+    return json.loads(source["meta"]) if source.get("meta") else {}
+
+
+async def _acquire_web(
+    store, notebook_id, source, settings, services, stage, record
+) -> ParseResult:
+    """Fetch the page (once; kept as original.html) and extract its main content (FR-2.9)."""
+    if not settings["allow_web_import"]:
+        raise IngestError("Importing from the web is turned off in Settings.")
+    path = store.source_dir(notebook_id, source["id"]) / "original.html"
+    if not path.exists():
+        stage("Fetching the page", 0.05)
+        result = await services.fetch(source["url"])
+        path.write_bytes(result.content)
+        record(fetched_at=now_iso())
+    parsed = await asyncio.to_thread(run_parse, path, "web")
+    if parsed.title:
+        record(name=parsed.title[:300], meta=json.dumps({**_meta(source), "title": parsed.title}))
+    return parsed
+
+
+async def _acquire_youtube(
+    store, notebook_id, source, settings, services, stage, record, check
+) -> ParseResult:
+    """Captions if the video has them; otherwise local transcription, only if the user allowed
+    it (FR-2.10)."""
+    if not settings["allow_web_import"]:
+        raise IngestError("Importing from the web is turned off in Settings.")
+    video_id = parse_video_id(source["url"])
+    languages = _meta(source).get("languages") or ["en"]
+    stage("Reading the video's details", 0.05)
+    try:
+        info = await asyncio.to_thread(services.youtube.metadata, source["url"], video_id)
+    except FetchError:  # details are nice to have; the transcript is what matters
+        info = VideoInfo(video_id=video_id, title=f"YouTube video {video_id}", url=source["url"])
+    check()
+    stage("Fetching captions", 0.1)
+    captions = await asyncio.to_thread(services.youtube.captions, video_id, languages)
+    check()
+    if captions and captions.lines:
+        blocks = [
+            Block(text, start_s=start, end_s=end)
+            for text, start, end in caption_blocks(captions.lines)
+        ]
+        parsed = ParseResult(blocks)
+        transcript_source = "captions"
+    elif settings["transcribe_uncaptioned_videos"]:
+        stage("Downloading the audio", 0.1)
+        folder = store.source_dir(notebook_id, source["id"]) / "audio_tmp"
+        folder.mkdir(parents=True, exist_ok=True)
+        try:
+            audio = await asyncio.to_thread(services.youtube.download_audio, source["url"], folder)
+            check()
+            stage("Transcribing", 0.15)
+            parsed = await asyncio.to_thread(
+                run_parse,
+                audio,
+                "audio",
+                None,
+                None,
+                {"stt_model": settings["stt_model"], "models_dir": str(services.models_dir)},
+            )
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)  # the downloaded audio is never kept
+        transcript_source = "transcription"
+    else:
+        raise IngestError(NO_CAPTIONS_MESSAGE)
+    record(
+        name=info.title[:300],
+        fetched_at=now_iso(),
+        meta=json.dumps(
+            {
+                **_meta(source),
+                "video_id": video_id,
+                "title": info.title,
+                "channel": info.channel,
+                "description": info.description,
+                "duration": info.duration,
+                "transcript": transcript_source,
+            }
+        ),
+    )
+    return parsed
+
+
 async def run_ingest(
     store: NotebookStore,
     notebook_id: str,
@@ -171,6 +266,7 @@ async def run_ingest(
     llm: LLMClient,
     settings: dict,
     is_cancelled: Callable[[], bool] = lambda: False,
+    services: Services | None = None,
 ) -> str | None:
     """Process one source. Returns None on success, else the user-readable error."""
 
@@ -199,9 +295,28 @@ async def run_ingest(
 
         _update_source(store, notebook_id, source_id, state="processing", error=None)
         stage("Reading file", 0.05)
-        parsed = await asyncio.to_thread(
-            run_parse, original_path(store, notebook_id, source), source["type"]
-        )
+        services = services or Services(models_dir=store.data_root / "models")
+
+        def record(**fields) -> None:
+            _update_source(store, notebook_id, source_id, **fields)
+
+        if source["type"] == "web":
+            parsed = await _acquire_web(
+                store, notebook_id, source, settings, services, stage, record
+            )
+        elif source["type"] == "youtube":
+            parsed = await _acquire_youtube(
+                store, notebook_id, source, settings, services, stage, record, check
+            )
+        else:
+            parsed = await asyncio.to_thread(
+                run_parse,
+                original_path(store, notebook_id, source),
+                source["type"],
+                None,
+                2 * 1024**3,
+                {"stt_model": settings["stt_model"], "models_dir": str(services.models_dir)},
+            )
         check()
         extracted = build_extracted(parsed)
         write_extracted(extracted_path(store, notebook_id, source_id), extracted)
@@ -263,7 +378,15 @@ async def run_ingest(
         return None
     except (Cancelled, NotFound):
         return "Cancelled."
-    except (ParseError, LLMError, IngestError, StructuredOutputError, ValueError) as e:
+    except (
+        ParseError,
+        LLMError,
+        IngestError,
+        StructuredOutputError,
+        FetchError,
+        UnsafeURL,
+        ValueError,
+    ) as e:
         message = str(e)
     except Exception as e:
         log.exception("Ingestion failed for source %s", source_id)

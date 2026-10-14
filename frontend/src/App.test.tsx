@@ -196,6 +196,9 @@ describe('notebook workspace', () => {
     expect(screen.getAllByRole('menuitem').map((m) => m.textContent)).toEqual([
       'Upload files',
       'Paste text',
+      'Website',
+      'YouTube',
+      'Discover',
     ])
     await userEvent.upload(
       screen.getByLabelText('Choose files'),

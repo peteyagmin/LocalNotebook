@@ -78,12 +78,17 @@ export function App() {
             onDone={() => (window.location.hash = '#/')}
           />
         </div>
-      ) : hash === '#/settings' ? (
+      ) : hash.startsWith('#/settings') ? (
         <div className="flex-1 overflow-auto">
           <SettingsPage
             settings={settings}
             onSettingsChange={setSettings}
             onClose={() => (window.location.hash = '#/')}
+            notice={
+              hash.includes('why=discover')
+                ? 'Discover needs a search provider. Enter the address of your SearXNG instance under Network, then save.'
+                : undefined
+            }
           />
         </div>
       ) : notebookId ? (

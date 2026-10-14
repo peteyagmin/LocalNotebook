@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, type Source, type SourceContent } from '../api'
+import { formatTimestamp } from '../format'
 
 export interface Highlight {
   start: number
@@ -46,6 +47,14 @@ export function SourceViewer({ notebookId, source, highlight, onClose }: SourceV
   }, [content, highlight])
 
   let lastPage: number | null = null
+  const videoId = source.type === 'youtube' ? source.meta.video_id : undefined
+  const at = (seconds: number) =>
+    `https://www.youtube.com/watch?v=${videoId}&t=${Math.floor(seconds)}s`
+  // For a cited passage in a video: where it starts, so it can be opened in the browser.
+  const citedStart =
+    content && highlight
+      ? content.segments.find((seg) => seg.end > highlight.start && seg.start_s != null)?.start_s
+      : undefined
   return (
     <div
       role="dialog"
@@ -82,6 +91,26 @@ export function SourceViewer({ notebookId, source, highlight, onClose }: SourceV
             </ul>
           </section>
         )}
+        {source.url && (
+          <p className="mb-3 text-xs text-neutral-500">
+            <a href={source.url} target="_blank" rel="noreferrer noopener" className="underline">
+              {source.url}
+            </a>
+            {source.meta.channel && <span> · {source.meta.channel}</span>}
+          </p>
+        )}
+        {videoId && citedStart != null && (
+          <p className="mb-3">
+            <a
+              href={at(citedStart)}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="rounded border border-neutral-300 px-2 py-1 text-xs hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+            >
+              Open in browser at this time ({formatTimestamp(citedStart)})
+            </a>
+          </p>
+        )}
         {error && (
           <p role="alert" className="text-red-600">
             {error}
@@ -101,6 +130,21 @@ export function SourceViewer({ notebookId, source, highlight, onClose }: SourceV
               : null
           return (
             <div key={i}>
+              {seg.start_s != null &&
+                (videoId ? (
+                  <a
+                    href={at(seg.start_s)}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="mb-1 inline-block text-xs text-blue-700 underline dark:text-blue-300"
+                  >
+                    {formatTimestamp(seg.start_s)}
+                  </a>
+                ) : (
+                  <div className="mb-1 text-xs text-neutral-500">
+                    {formatTimestamp(seg.start_s)}
+                  </div>
+                ))}
               {marker !== null && (
                 <div className="my-3 border-t border-neutral-300 pt-1 text-xs text-neutral-500 dark:border-neutral-700">
                   Page {marker}

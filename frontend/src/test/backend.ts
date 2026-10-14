@@ -14,6 +14,11 @@ export const baseSettings: Settings = {
   max_upload_mb: 200,
   retrieval_top_k: 8,
   context_window_tokens: 8000,
+  allow_web_import: true,
+  allow_discover: true,
+  allow_model_downloads: true,
+  transcribe_uncaptioned_videos: false,
+  searxng_url: '',
 }
 
 type Handler = (body: unknown, url: string) => unknown
@@ -64,6 +69,10 @@ export function source(over: Partial<import('../api').Source> = {}): import('../
     id: 's1',
     name: 'Doc.pdf',
     type: 'pdf',
+    url: null,
+    fetched_at: null,
+    version_count: 0,
+    meta: {},
     size_bytes: 10,
     state: 'ready',
     stage: null,

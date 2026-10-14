@@ -13,6 +13,11 @@ export interface Settings {
   max_upload_mb: number
   retrieval_top_k: number
   context_window_tokens: number
+  allow_web_import: boolean
+  allow_discover: boolean
+  allow_model_downloads: boolean
+  transcribe_uncaptioned_videos: boolean
+  searxng_url: string
 }
 
 export interface SetupCheck {
@@ -43,7 +48,19 @@ export type SourceState = 'queued' | 'processing' | 'ready' | 'failed'
 export interface Source {
   id: string
   name: string
-  type: 'pdf' | 'docx' | 'txt' | 'md' | 'text'
+  type:
+    'pdf' | 'docx' | 'txt' | 'md' | 'text' | 'html' | 'epub' | 'image' | 'audio' | 'web' | 'youtube'
+  url: string | null
+  fetched_at: string | null
+  version_count: number
+  meta: {
+    title?: string
+    channel?: string
+    description?: string
+    duration?: number | null
+    video_id?: string
+    transcript?: 'captions' | 'transcription'
+  }
   size_bytes: number
   state: SourceState
   stage: string | null
@@ -57,7 +74,14 @@ export interface Source {
 
 export interface SourceContent {
   text: string
-  segments: { start: number; end: number; page: number | null; heading_path: string[] | null }[]
+  segments: {
+    start: number
+    end: number
+    page: number | null
+    heading_path: string[] | null
+    start_s?: number | null
+    end_s?: number | null
+  }[]
   page_count: number | null
 }
 
@@ -72,6 +96,8 @@ export interface Citation {
     heading_path: string[] | null
     char_start: number
     char_end: number
+    start_seconds?: number
+    end_seconds?: number
   }
   removed?: boolean
 }
@@ -181,6 +207,30 @@ export interface SearchResult {
   excerpt: string
   char_start: number
   char_end: number
+}
+
+export interface Capabilities {
+  ocr: boolean
+  stt: { configured: boolean; installed: boolean }
+  web_import: boolean
+  discover: { allowed: boolean; configured: boolean }
+}
+
+export interface SttStatus {
+  model: string
+  configured: boolean
+  installed: boolean
+  downloads_allowed: boolean
+  state: 'idle' | 'downloading' | 'error'
+  progress?: number | null
+  error?: string | null
+}
+
+export interface DiscoverSuggestion {
+  title: string
+  url: string
+  note: string
+  kind: 'web' | 'youtube'
 }
 
 export class ApiError extends Error {
@@ -358,6 +408,15 @@ export const api = {
     return { blob: await resp.blob(), filename }
   },
 
+  importUrls: (id: string, urls: string[]) =>
+    request<Source[]>('POST', `${nb(id)}/sources/urls`, { urls }),
+  refreshSource: (id: string, sourceId: string) =>
+    request<Source>('POST', `${nb(id)}/sources/${sourceId}/refresh`),
+  discover: (id: string, topic: string) =>
+    request<{ suggestions: DiscoverSuggestion[] }>('POST', `${nb(id)}/discover`, { topic }),
+  getCapabilities: () => request<Capabilities>('GET', '/capabilities'),
+  getSttStatus: () => request<SttStatus>('GET', '/speech/stt'),
+  startSttDownload: () => request<SttStatus>('POST', '/speech/stt/download', { confirm: true }),
   getSourceContent: (id: string, sourceId: string) =>
     request<SourceContent>('GET', `${nb(id)}/sources/${sourceId}/content`),
 

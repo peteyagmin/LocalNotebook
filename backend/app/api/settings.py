@@ -28,6 +28,11 @@ class SettingsUpdate(BaseModel):
     max_upload_mb: int | None = Field(default=None, ge=1)
     retrieval_top_k: int | None = Field(default=None, ge=1, le=20)
     context_window_tokens: int | None = Field(default=None, ge=1000)
+    allow_web_import: bool | None = None
+    allow_discover: bool | None = None
+    allow_model_downloads: bool | None = None
+    transcribe_uncaptioned_videos: bool | None = None
+    searxng_url: str | None = None
 
 
 @router.get("/settings")

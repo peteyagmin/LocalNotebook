@@ -11,15 +11,28 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import artifacts, chat, health, notebooks, notes, search, settings, sources
+from app.api import (
+    artifacts,
+    chat,
+    discover,
+    health,
+    notebooks,
+    notes,
+    search,
+    settings,
+    sources,
+    speech,
+)
 from app.core import db, settings_store
 from app.core.config import FRONTEND_DIST, MIGRATIONS_DIR, RuntimeConfig, load_runtime_config
 from app.core.errors import AppError
 from app.core.notebooks import NotebookStore, NotFound
 from app.core.security import SecurityMiddleware, error_response, new_token
+from app.ingest.services import Services
 from app.jobs.runner import JobRunner
 from app.llm.base import LLMClient
 from app.llm.openai_compat import OpenAICompatClient
+from app.speech.models import ModelDownloads, download_faster_whisper
 
 
 def default_llm_factory(settings: dict) -> LLMClient:
@@ -31,6 +44,8 @@ def create_app(
     token: str | None = None,
     llm_factory: Callable[[dict], LLMClient] = default_llm_factory,
     frontend_dist: Path = FRONTEND_DIST,
+    services: Services | None = None,
+    model_downloader=download_faster_whisper,
 ) -> FastAPI:
     config = config or load_runtime_config()
     token = token or os.environ.get("LNB_TOKEN") or new_token()
@@ -46,7 +61,8 @@ def create_app(
         finally:
             conn.close()
 
-    runner = JobRunner(store, llm_factory, load_settings)
+    services = services or Services(models_dir=config.data_root / "models")
+    runner = JobRunner(store, llm_factory, load_settings, services=services)
 
     @asynccontextmanager
     async def lifespan(_app):
@@ -66,6 +82,8 @@ def create_app(
     app.state.store = store
     app.state.runner = runner
     app.state.chat_stops = {}
+    app.state.services = services
+    app.state.model_downloads = ModelDownloads(services.models_dir, model_downloader)
 
     app.add_middleware(SecurityMiddleware, token=token, allowed_origins=config.allowed_origins)
 
@@ -93,6 +111,8 @@ def create_app(
     app.include_router(search.router, prefix="/api/v1")
     app.include_router(notes.router, prefix="/api/v1")
     app.include_router(artifacts.router, prefix="/api/v1")
+    app.include_router(discover.router, prefix="/api/v1")
+    app.include_router(speech.router, prefix="/api/v1")
 
     if (frontend_dist / "index.html").exists():
         app.mount("/assets", StaticFiles(directory=frontend_dist / "assets"), name="assets")

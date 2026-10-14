@@ -368,7 +368,7 @@ FR-3.1–FR-3.9, FR-7.1, SR-3 prompt hardening.
 * \[x] **M3 — Notes \& text artifacts**
 FR-4.1–FR-4.3; FR-5.1–FR-5.4, FR-5.9–FR-5.13 (Markdown artifacts).
 *Accept:* each artifact generates, cites, exports to md/docx/pdf, and shows the stale badge after a source is removed.
-* \[ ] **M4 — Structured artifacts**
+* \[x] **M4 — Structured artifacts**
 FR-5.5–FR-5.7 with schema validation and retry.
 *Accept:* timeline, mind map (click-to-chat works), flashcards and quiz render and export.
 * \[ ] **M5 — Remaining source types \& web**

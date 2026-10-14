@@ -1,4 +1,5 @@
 import type { Citation } from '../api'
+import { describeLocation } from '../format'
 
 interface CitationChipProps {
   label: number
@@ -33,7 +34,14 @@ export function CitationChip({ label, citation, onOpen }: CitationChipProps) {
         role="tooltip"
         className="invisible absolute bottom-full left-0 z-20 mb-1 w-64 rounded border border-neutral-300 bg-white p-2 text-xs font-normal text-neutral-800 shadow group-focus-within:visible group-hover:visible dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
       >
-        <strong className="block">{removed ? 'Source removed' : citation.source_name}</strong>
+        <strong className="block">
+          {removed ? 'Source removed' : citation.source_name}
+          {!removed && describeLocation(citation.location) && (
+            <span className="ml-2 font-normal text-neutral-500">
+              {describeLocation(citation.location)}
+            </span>
+          )}
+        </strong>
         <span className="line-clamp-4">{citation.excerpt}</span>
       </span>
     </span>
