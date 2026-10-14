@@ -8,3 +8,5 @@ tts_voice_b = ""
 llm_base_url = "http://127.0.0.1:11434/v1"
 llm_api_key = ""
 setup_completed = false
+max_sources_per_notebook = 50
+max_upload_mb = 200

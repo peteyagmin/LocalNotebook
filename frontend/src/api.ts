@@ -9,6 +9,8 @@ export interface Settings {
   llm_base_url: string
   llm_api_key: string
   setup_completed: boolean
+  max_sources_per_notebook: number
+  max_upload_mb: number
 }
 
 export interface SetupCheck {
@@ -23,6 +25,38 @@ export interface ConnectionResult {
   ok: boolean
   message: string
   models: string[]
+}
+
+export interface Notebook {
+  id: string
+  name: string
+  created_at: string
+  updated_at: string
+  source_count: number
+  size_bytes: number
+}
+
+export type SourceState = 'queued' | 'processing' | 'ready' | 'failed'
+
+export interface Source {
+  id: string
+  name: string
+  type: 'pdf' | 'docx' | 'txt' | 'md' | 'text'
+  size_bytes: number
+  state: SourceState
+  stage: string | null
+  progress: number
+  error: string | null
+  enabled: boolean
+  char_count: number | null
+  page_count: number | null
+  guide: { summary: string; topics: string[] } | null
+}
+
+export interface SourceContent {
+  text: string
+  segments: { start: number; end: number; page: number | null; heading_path: string[] | null }[]
+  page_count: number | null
 }
 
 export class ApiError extends Error {
@@ -57,15 +91,7 @@ function token(): string {
   }
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const resp = await fetch(`/api/v1${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token()}`,
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
+async function throwIfError(resp: Response): Promise<void> {
   if (!resp.ok) {
     let code = 'http_error'
     let message = `Request failed (${resp.status}).`
@@ -78,10 +104,78 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     }
     throw new ApiError(resp.status, code, message)
   }
+}
+
+async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const isForm = body instanceof FormData
+  const resp = await fetch(`/api/v1${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token()}`,
+      ...(body === undefined || isForm ? {} : { 'Content-Type': 'application/json' }),
+    },
+    body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
+  })
+  await throwIfError(resp)
+  if (resp.status === 204) return undefined as T
   return resp.json() as Promise<T>
 }
 
+/** Read a Server-Sent Events stream with fetch (EventSource cannot send the auth header). */
+async function stream<T>(path: string, onEvent: (data: T) => void, signal: AbortSignal) {
+  const resp = await fetch(`/api/v1${path}`, {
+    headers: { Authorization: `Bearer ${token()}` },
+    signal,
+  })
+  await throwIfError(resp)
+  const reader = resp.body!.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) return
+    buffer += decoder.decode(value, { stream: true })
+    let end: number
+    while ((end = buffer.indexOf('\n\n')) !== -1) {
+      const block = buffer.slice(0, end)
+      buffer = buffer.slice(end + 2)
+      const line = block.split('\n').find((l) => l.startsWith('data: '))
+      if (line) onEvent(JSON.parse(line.slice(6)) as T)
+    }
+  }
+}
+
+const nb = (id: string) => `/notebooks/${id}`
+
 export const api = {
+  listNotebooks: () => request<Notebook[]>('GET', '/notebooks'),
+  getNotebook: (id: string) => request<Notebook>('GET', nb(id)),
+  createNotebook: (name: string) => request<Notebook>('POST', '/notebooks', { name }),
+  renameNotebook: (id: string, name: string) => request<Notebook>('PATCH', nb(id), { name }),
+  duplicateNotebook: (id: string) => request<Notebook>('POST', `${nb(id)}/duplicate`),
+  deleteNotebook: (id: string) => request<void>('DELETE', nb(id)),
+
+  listSources: (id: string) => request<Source[]>('GET', `${nb(id)}/sources`),
+  streamSources: (id: string, onEvent: (s: Source[]) => void, signal: AbortSignal) =>
+    stream<Source[]>(`${nb(id)}/sources/stream`, onEvent, signal),
+  uploadFiles: (id: string, files: File[]) => {
+    const form = new FormData()
+    files.forEach((f) => form.append('files', f))
+    return request<Source[]>('POST', `${nb(id)}/sources/files`, form)
+  },
+  pasteText: (id: string, name: string, text: string) =>
+    request<Source[]>('POST', `${nb(id)}/sources/text`, { name, text }),
+  setSourceEnabled: (id: string, sourceId: string, enabled: boolean) =>
+    request<Source>('PATCH', `${nb(id)}/sources/${sourceId}`, { enabled }),
+  setAllSourcesEnabled: (id: string, enabled: boolean) =>
+    request<Source[]>('POST', `${nb(id)}/sources/enabled`, { enabled }),
+  retrySource: (id: string, sourceId: string) =>
+    request<Source>('POST', `${nb(id)}/sources/${sourceId}/retry`),
+  deleteSource: (id: string, sourceId: string) =>
+    request<void>('DELETE', `${nb(id)}/sources/${sourceId}`),
+  getSourceContent: (id: string, sourceId: string) =>
+    request<SourceContent>('GET', `${nb(id)}/sources/${sourceId}/content`),
+
   getSettings: () => request<Settings>('GET', '/settings'),
   updateSettings: (changes: Partial<Settings>) => request<Settings>('PUT', '/settings', changes),
   testConnection: () => request<ConnectionResult>('POST', '/settings/test-connection'),

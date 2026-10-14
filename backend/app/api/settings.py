@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_db, get_llm, get_settings
 from app.core import settings_store
@@ -24,6 +24,8 @@ class SettingsUpdate(BaseModel):
     llm_base_url: str | None = None
     llm_api_key: str | None = None
     setup_completed: bool | None = None
+    max_sources_per_notebook: int | None = Field(default=None, ge=1)
+    max_upload_mb: int | None = Field(default=None, ge=1)
 
 
 @router.get("/settings")

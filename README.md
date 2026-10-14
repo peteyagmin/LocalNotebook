@@ -2,7 +2,13 @@
 
 Local, source-grounded research notebook. See `PROJECT_SPEC.md` for the full specification.
 
-**Status:** M0 (skeleton) complete. No notebook or source features yet.
+**Status:** M1 implemented (notebooks and core ingestion): create, rename, duplicate and delete
+notebooks; add PDF, DOCX, TXT, Markdown and pasted-text sources; view extracted text; enable or
+disable sources. Chat, notes, and generated outputs come in later milestones.
+
+Ingesting a source calls your model server twice (embeddings, then a short source guide), so a chat
+model and an embedding model must be set in Settings first. Without them a source shows as failed
+with a **Retry** button.
 
 ## Requirements
 

@@ -9,7 +9,7 @@ interface SettingsPageProps {
 
 type EditableKey = Exclude<keyof Settings, 'setup_completed'>
 
-const FIELDS: { key: EditableKey; label: string; type?: string }[] = [
+const FIELDS: { key: EditableKey; label: string; type?: 'password' | 'number' }[] = [
   { key: 'llm_base_url', label: 'Model server URL' },
   { key: 'llm_api_key', label: 'API key (optional)', type: 'password' },
   { key: 'chat_model', label: 'Chat model' },
@@ -17,6 +17,8 @@ const FIELDS: { key: EditableKey; label: string; type?: string }[] = [
   { key: 'stt_model', label: 'Speech-to-text model' },
   { key: 'tts_voice_a', label: 'Voice for Host A' },
   { key: 'tts_voice_b', label: 'Voice for Host B' },
+  { key: 'max_sources_per_notebook', label: 'Maximum sources per notebook', type: 'number' },
+  { key: 'max_upload_mb', label: 'Maximum file size (MB)', type: 'number' },
 ]
 
 export function SettingsPage({ settings, onSettingsChange, onClose }: SettingsPageProps) {
@@ -58,7 +60,16 @@ export function SettingsPage({ settings, onSettingsChange, onClose }: SettingsPa
             type={type ?? 'text'}
             className="w-full rounded border border-neutral-300 bg-transparent px-2 py-1 dark:border-neutral-700"
             value={draft[key]}
-            onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
+            min={type === 'number' ? 1 : undefined}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                [key]:
+                  type === 'number'
+                    ? Math.max(1, parseInt(e.target.value, 10) || 1)
+                    : e.target.value,
+              })
+            }
           />
         </label>
       ))}

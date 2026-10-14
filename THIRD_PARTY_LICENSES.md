@@ -14,6 +14,10 @@ Only MIT, BSD, Apache-2.0, ISC, MPL-2.0, Unlicense, and PSF licenses are allowed
 | pytest (dev) | 9.1.1 | MIT | M0 |
 | pytest-asyncio (dev) | 1.4.0 | Apache-2.0 | M0 |
 | ruff (dev) | 0.17.0 | MIT | M0 |
+| pypdfium2 | 5.14.0 | BSD-3-Clause OR Apache-2.0 (bundles PDFium: BSD-3-Clause/Apache-2.0 and other permissive third-party licenses) | M1 |
+| python-docx | 1.2.0 | MIT (depends on lxml, BSD-3-Clause) | M1 |
+| python-multipart | 0.0.32 | Apache-2.0 | M1 |
+| sqlite-vec | 0.1.9 | MIT OR Apache-2.0 | M1 |
 
 ## JavaScript (`frontend/package.json`)
 

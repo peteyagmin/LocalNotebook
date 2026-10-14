@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { api, type Settings } from './api'
 import { Setup } from './pages/Setup'
 import { SettingsPage } from './pages/SettingsPage'
-import { Workspace } from './pages/Workspace'
+import { Home } from './pages/Home'
+import { NotebookPage } from './pages/NotebookPage'
 
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]'])
 
@@ -16,12 +17,20 @@ export function remoteHost(baseUrl: string): string | null {
   }
 }
 
-type View = 'workspace' | 'settings'
+function useHash(): string {
+  const [hash, setHash] = useState(window.location.hash)
+  useEffect(() => {
+    const onChange = () => setHash(window.location.hash)
+    window.addEventListener('hashchange', onChange)
+    return () => window.removeEventListener('hashchange', onChange)
+  }, [])
+  return hash
+}
 
 export function App() {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [view, setView] = useState<View>('workspace')
+  const hash = useHash()
 
   useEffect(() => {
     api
@@ -38,6 +47,7 @@ export function App() {
     )
   if (!settings) return <p className="p-6">Loading…</p>
 
+  const notebookId = /^#\/notebooks\/([^/?]+)/.exec(hash)?.[1]
   const warnHost = remoteHost(settings.llm_base_url)
 
   return (
@@ -49,14 +59,15 @@ export function App() {
       )}
       {settings.setup_completed && (
         <header className="flex items-center justify-between border-b border-neutral-200 px-4 py-2 dark:border-neutral-800">
-          <span className="font-semibold">LocalNotebook</span>
-          <button
-            type="button"
-            onClick={() => setView(view === 'settings' ? 'workspace' : 'settings')}
+          <a href="#/" className="font-semibold">
+            LocalNotebook
+          </a>
+          <a
+            href="#/settings"
             className="rounded px-2 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
             Settings
-          </button>
+          </a>
         </header>
       )}
       {!settings.setup_completed ? (
@@ -64,19 +75,23 @@ export function App() {
           <Setup
             settings={settings}
             onSettingsChange={setSettings}
-            onDone={() => setView('workspace')}
+            onDone={() => (window.location.hash = '#/')}
           />
         </div>
-      ) : view === 'settings' ? (
+      ) : hash === '#/settings' ? (
         <div className="flex-1 overflow-auto">
           <SettingsPage
             settings={settings}
             onSettingsChange={setSettings}
-            onClose={() => setView('workspace')}
+            onClose={() => (window.location.hash = '#/')}
           />
         </div>
+      ) : notebookId ? (
+        <NotebookPage key={notebookId} notebookId={notebookId} />
       ) : (
-        <Workspace />
+        <div className="flex-1 overflow-auto">
+          <Home />
+        </div>
       )}
     </div>
   )

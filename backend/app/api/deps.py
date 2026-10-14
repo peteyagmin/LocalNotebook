@@ -31,3 +31,11 @@ async def get_llm(
         close = getattr(client, "aclose", None)
         if close:
             await close()
+
+
+def get_store(request: Request):
+    return request.app.state.store
+
+
+def get_runner(request: Request):
+    return request.app.state.runner

@@ -7,16 +7,18 @@ interface PaneProps {
   side: 'left' | 'right' | 'center'
   width?: number
   children: ReactNode
+  /** Covers the pane body (used by the source viewer). */
+  overlay?: ReactNode
 }
 
-export function Pane({ title, collapsed, onToggle, side, width, children }: PaneProps) {
+export function Pane({ title, collapsed, onToggle, side, width, children, overlay }: PaneProps) {
   const style = side === 'center' ? undefined : { width: collapsed ? 40 : width }
   const arrow = collapsed ? (side === 'left' ? '»' : '«') : side === 'left' ? '«' : '»'
   return (
     <section
       aria-label={title}
       style={style}
-      className={`flex min-h-0 flex-col border-neutral-200 dark:border-neutral-800 ${
+      className={`relative flex min-h-0 flex-col border-neutral-200 dark:border-neutral-800 ${
         side === 'center' ? 'min-w-0 flex-1' : 'shrink-0'
       }`}
     >
@@ -35,6 +37,7 @@ export function Pane({ title, collapsed, onToggle, side, width, children }: Pane
         )}
       </header>
       {!collapsed && <div className="flex-1 overflow-auto p-3 text-sm">{children}</div>}
+      {overlay}
     </section>
   )
 }

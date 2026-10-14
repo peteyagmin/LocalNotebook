@@ -1,8 +1,16 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
+import type { Source } from '../api'
+import { SourceViewer } from '../components/SourceViewer'
+import { SourcesPane } from '../components/SourcesPane'
+import { useSources } from '../hooks/useSources'
 import { Pane } from '../components/Pane'
 import { Resizer } from '../components/Resizer'
 
-export function Workspace() {
+export function Workspace({ notebookId }: { notebookId: string }) {
+  const { sources, setSources, refresh, error } = useSources(notebookId)
+  const [viewing, setViewing] = useState<string | null>(null)
+  const closeViewer = useCallback(() => setViewing(null), [])
+  const viewed: Source | undefined = sources?.find((s) => s.id === viewing)
   const [left, setLeft] = useState({ width: 280, collapsed: false })
   const [right, setRight] = useState({ width: 320, collapsed: false })
 
@@ -15,7 +23,18 @@ export function Workspace() {
         collapsed={left.collapsed}
         onToggle={() => setLeft({ ...left, collapsed: !left.collapsed })}
       >
-        <p className="text-neutral-500">Nothing here yet.</p>
+        {error && (
+          <p role="alert" className="text-red-600">
+            {error}
+          </p>
+        )}
+        <SourcesPane
+          notebookId={notebookId}
+          sources={sources}
+          setSources={setSources}
+          refresh={refresh}
+          onOpen={(s) => setViewing(s.id)}
+        />
       </Pane>
       {!left.collapsed && (
         <Resizer
@@ -27,7 +46,15 @@ export function Workspace() {
           onChange={(width) => setLeft({ ...left, width })}
         />
       )}
-      <Pane title="Chat" side="center" collapsed={false} onToggle={() => {}}>
+      <Pane
+        title="Chat"
+        side="center"
+        collapsed={false}
+        onToggle={() => {}}
+        overlay={
+          viewed && <SourceViewer notebookId={notebookId} source={viewed} onClose={closeViewer} />
+        }
+      >
         <p className="text-neutral-500">Nothing here yet.</p>
       </Pane>
       {!right.collapsed && (

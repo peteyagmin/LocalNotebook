@@ -356,7 +356,7 @@ THIRD\\\_PARTY\\\_LICENSES.md
 
 Complete in order. **Stop after each milestone for owner testing.** Tick boxes only when all acceptance criteria pass.
 
-* \[ ] **M0 — Skeleton**
+* \[x] **M0 — Skeleton**
 Repo layout, tooling, `scripts/run` and `scripts/dev`, health endpoint, empty three-pane UI, settings storage, setup wizard checks (FR-8.3), fake LLM client, CI commands, `README.md`, `CLAUDE.md`, `THIRD\\\_PARTY\\\_LICENSES.md`.
 *Accept:* app launches with one command on the owner's machine; wizard correctly reports Ollama/Tesseract/ffmpeg presence; all tests pass.
 * \[ ] **M1 — Notebooks \& core ingestion**
