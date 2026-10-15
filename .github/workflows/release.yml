@@ -1,7 +1,8 @@
 name: Release
 
-# Push a tag such as v1.0.0 to build a download that already contains the built web page, so
-# end users do not need Node.js.
+# Push a tag such as v1.0.0 (or create a release in the GitHub web page) to build a download that
+# already contains the built web page, so end users do not need Node.js. If the release already
+# exists the zip is attached to it; otherwise the release is created.
 on:
   push:
     tags: ["v*"]
@@ -33,5 +34,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "LocalNotebook-${GITHUB_REF_NAME}.zip" \
-            --verify-tag --title "LocalNotebook ${GITHUB_REF_NAME}" --generate-notes
+          zip="LocalNotebook-${GITHUB_REF_NAME}.zip"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            # The release was created in the web page (which also created this tag): add the zip.
+            gh release upload "$GITHUB_REF_NAME" "$zip" --clobber
+          else
+            flags=""
+            case "$GITHUB_REF_NAME" in *-*) flags="--prerelease" ;; esac
+            gh release create "$GITHUB_REF_NAME" "$zip" --verify-tag $flags \
+              --title "LocalNotebook ${GITHUB_REF_NAME}" --generate-notes
+          fi
