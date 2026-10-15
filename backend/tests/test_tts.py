@@ -220,8 +220,7 @@ def test_status_download_and_installed(make_client, tmp_path, monkeypatch):
         == "needs_confirmation"
     )
     assert client.post(f"{API}/speech/tts/download", json={"confirm": True}).status_code == 202
-    done = wait_tts(client, lambda s: s["installed"])
-    assert done["state"] == "idle"
+    wait_tts(client, lambda s: s["installed"] and s["state"] == "idle")
     assert tts.is_installed(tmp_path / "models", "org/tts", ["va", "vb"])
 
 

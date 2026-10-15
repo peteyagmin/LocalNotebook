@@ -132,6 +132,7 @@ def test_an_overview_is_scripted_spoken_mixed_and_timed(make_client, tmp_path):
     assert (folder(tmp_path, nid, a) / "transcript.json").exists()
 
 
+@needs_ffmpeg
 def test_speakers_get_their_own_voice_and_text_is_cleaned_for_speaking(make_client, tmp_path):
     client, fake, tts, nid = setup(make_client, tmp_path)
     a = make(client, nid)
@@ -143,6 +144,7 @@ def test_speakers_get_their_own_voice_and_text_is_cleaned_for_speaking(make_clie
     assert voices_by_speaker == {("A", "voice-a"), ("B", "voice-b")}
 
 
+@needs_ffmpeg
 def test_turns_cite_real_passages_and_invented_ones_are_dropped(make_client, tmp_path):
     client, fake, tts, nid = setup(make_client, tmp_path)
     full = detail(client, nid, make(client, nid))
@@ -156,6 +158,7 @@ def test_turns_cite_real_passages_and_invented_ones_are_dropped(make_client, tmp
     )
 
 
+@needs_ffmpeg
 @pytest.mark.parametrize(
     ("length", "sections", "minutes"), [("short", 3, 5), ("default", 5, 10), ("long", 8, 20)]
 )
