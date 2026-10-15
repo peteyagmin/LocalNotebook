@@ -2,6 +2,8 @@
 
 Local, source-grounded research notebook. See `PROJECT_SPEC.md` for the full specification.
 
+**New to this? Read the [User Guide](docs/USER_GUIDE.md)** for step-by-step setup and use.
+
 **Status:** v1.0 (M0-M7 complete). Everything from M0 to M6
 (notebooks, sources of every type, cited chat, notes, generated documents, structured study aids,
 audio overviews) plus:
