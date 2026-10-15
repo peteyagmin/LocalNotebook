@@ -196,6 +196,7 @@ def test_llm_unreachable_reports_error_and_keeps_question(make_client):
 
 def test_not_configured(make_client):
     client = make_client(FakeLLMClient(default_reply=brain))
+    client.put("/api/v1/settings", json={"chat_model": "", "embedding_model": ""})
     nid = client.post(NB, json={"name": "NB"}).json()["id"]
     events = ask(client, nid, "hi")
     assert events == [

@@ -218,7 +218,8 @@ M0-M7 accepted: v1.0 signed off by the owner.
 ## Conventions
 
 - Reference requirement IDs (e.g. FR-8.3) in commits and tests.
-- No hardcoded model names. No new dependency without a license check and an entry in
+- No hardcoded model names in code (the suggested chat/embedding defaults live in `defaults.toml`;
+  speech models stay empty). No new dependency without a license check and an entry in
   `THIRD_PARTY_LICENSES.md`.
 - Cross-platform: `pathlib`, no shell-specific code in Python.
 - Prompts (from M2) go in `backend/app/prompts/*.txt`.

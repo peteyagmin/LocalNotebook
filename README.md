@@ -39,7 +39,8 @@ example through [Ollama](https://ollama.com)). No account, no cloud, no tracking
 
 1. Install [uv](https://docs.astral.sh/uv/) and [Ollama](https://ollama.com/download), then download
    a chat model and an embedding model, for example `ollama pull llama3.1` and
-   `ollama pull nomic-embed-text` (examples only; choose models that fit your computer).
+   `ollama pull nomic-embed-text`. These are the app's default models; you can pick others in
+   Settings to suit your computer.
 2. Download the newest `LocalNotebook-v….zip` from the
    [Releases page](https://github.com/peteyagmin/localnotebook/releases) and unzip it.
 3. In that folder, run `scripts/run.sh` (macOS / Linux) or `scripts\run.ps1` (Windows PowerShell).
@@ -158,8 +159,9 @@ scripted model and needs no server.
 
 ## Configuration
 
-- Defaults: `backend/app/config/defaults.toml`. Model names are empty until you set them in the
-  wizard or Settings.
+- Defaults: `backend/app/config/defaults.toml`. The chat and embedding models default to
+  `llama3.1` and `nomic-embed-text` (suggested starting points; change them in the wizard or Settings).
+  Speech models are empty until you set them.
 - Environment overrides: `LNB_DATA_ROOT`, `LNB_HOST_PORT`, `LNB_LLM_BASE_URL`.
 - Data folder: the OS user-data directory for "LocalNotebook" (override with `LNB_DATA_ROOT`).
 

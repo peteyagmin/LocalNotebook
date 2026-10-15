@@ -25,6 +25,7 @@ First public release.
 - **Rebuild index** after changing the embedding model.
 - **Settings:** model server and models, speech models with confirmed downloads, network switches,
   limits, light/dark theme and text size.
+- Suggested default models: `llama3.1` (chat) and `nomic-embed-text` (embeddings), changeable in Settings.
 - Setup checklist for the model server, models, Tesseract, ffmpeg and espeak-ng.
 - Security: server on `127.0.0.1` only, per-launch token, origin check, sandboxed parsers, URL
   safety checks that refuse local and private addresses.

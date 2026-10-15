@@ -39,7 +39,8 @@ The full rules are in [`docs/PROJECT_SPEC.md`](docs/PROJECT_SPEC.md) section 0 a
 - **Licenses:** only add dependencies under permissive licenses (MIT, BSD, Apache-2.0, ISC, MPL-2.0,
   Unlicense, PSF). **No GPL, LGPL or AGPL libraries.** Separate programs run as subprocesses are
   fine. Record every new dependency in `THIRD_PARTY_LICENSES.md`.
-- **No hardcoded model names.** Models are chosen by the user in Settings.
+- **No hardcoded model names in code.** Models are chosen by the user in Settings; the only names
+  in the repo are the suggested chat and embedding defaults in `backend/app/config/defaults.toml`.
 - **Privacy:** no telemetry and no new network use except actions the user starts and can switch off.
 - **Cross-platform:** use `pathlib`; no shell-specific code in Python.
 - **Prompts** live in `backend/app/prompts/*.txt`.

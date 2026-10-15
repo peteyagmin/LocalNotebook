@@ -177,8 +177,8 @@ espeak-ng --version
    Applications (it sits in the system tray / menu bar). On Linux the installer starts it for you.
 2. **Download two models.** In PowerShell or Terminal, use `ollama pull` followed by a model name.
    Browse the choices in the [Ollama model library](https://ollama.com/library).
-   You need **one chat model** and **one embedding model**. For example (these are only examples;
-   pick what suits your computer):
+   You need **one chat model** and **one embedding model**. LocalNotebook is pre-set to these two,
+   so the simplest start is:
 
    ```
    ollama pull llama3.1
@@ -186,7 +186,8 @@ espeak-ng --version
    ```
 
    Here `llama3.1` is the chat model and `nomic-embed-text` is the embedding model. Each download can
-   take several minutes and a few gigabytes.
+   take several minutes and a few gigabytes. You can use different models instead and enter their
+   names in Settings (see below).
 
    *How to choose:* a smaller chat model runs faster and works on modest computers; a larger one
    writes better. The library page shows each model's size. As a rule of thumb, pick a chat model
@@ -277,8 +278,9 @@ and, for a cross, how to fix it.
 
 **Do this:**
 
-1. Type the exact **Chat model** and **Embedding model** names from `ollama list` (for example
-   `llama3.1` and `nomic-embed-text`).
+1. The **Chat model** and **Embedding model** boxes are pre-filled with `llama3.1` and
+   `nomic-embed-text`. If you downloaded different models, replace them with the exact names from
+   `ollama list`.
 2. Click **Save and re-check**.
 3. When the first three lines show ✔, click **Continue**. The other lines can wait.
 

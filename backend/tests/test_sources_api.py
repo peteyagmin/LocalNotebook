@@ -87,6 +87,7 @@ def test_original_file_kept_unmodified(configured, notebook, tmp_path):
 
 def test_failure_shows_error_and_retry_recovers(make_client, tmp_path):
     client = make_client()
+    client.put("/api/v1/settings", json={"chat_model": "", "embedding_model": ""})
     nid = client.post(NB, json={"name": "NB"}).json()["id"]
     paste(client, nid, "Some text to ingest.")
     failed = wait_idle(client, nid)[0]

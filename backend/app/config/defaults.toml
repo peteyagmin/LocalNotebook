@@ -1,7 +1,8 @@
-# Default global settings. Model identifiers are placeholders: the owner fills them in
-# during setup (FR-8.1, spec §8). They are intentionally empty.
-chat_model = ""
-embedding_model = ""
+# Default global settings (FR-8.1, spec §8). The chat and embedding models are suggested starting
+# points that the setup checklist verifies and users can change in Settings; the speech models stay
+# empty because they are downloaded only on request.
+chat_model = "llama3.1"
+embedding_model = "nomic-embed-text"
 stt_model = ""
 tts_model = ""
 tts_voice_a = ""

@@ -296,6 +296,7 @@ def test_progress_is_reported_while_downloading(make_client):
 def test_capabilities_list_what_an_audio_overview_still_needs(make_client, monkeypatch):
     monkeypatch.setattr(tts.shutil, "which", lambda name: None)
     client = make_client(tts_downloader=writes_files)
+    client.put(f"{API}/settings", json={"chat_model": ""})
     caps = client.get(f"{API}/capabilities").json()["audio_overview"]
     assert caps["ready"] is False
     assert any("chat model" in p for p in caps["problems"]) and any(

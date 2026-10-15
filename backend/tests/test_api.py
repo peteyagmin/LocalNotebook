@@ -33,7 +33,8 @@ def test_unknown_api_path_uses_error_shape(client):
 
 def test_settings_defaults_and_update(client):
     s = client.get("/api/v1/settings").json()
-    assert s["chat_model"] == ""
+    assert s["chat_model"] == "llama3.1" and s["embedding_model"] == "nomic-embed-text"
+    assert s["stt_model"] == "" and s["tts_model"] == ""  # downloaded only on request
     assert s["setup_completed"] is False
     r = client.put("/api/v1/settings", json={"chat_model": "m1", "setup_completed": True})
     assert r.status_code == 200
