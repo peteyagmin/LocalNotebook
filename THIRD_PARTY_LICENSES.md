@@ -1,5 +1,7 @@
 # Third-party licenses
 
+LocalNotebook itself is released under the MIT License (see `LICENSE`).
+
 Direct dependencies only. Licenses verified from installed package metadata (spec §0 rule 7).
 Only MIT, BSD, Apache-2.0, ISC, MPL-2.0, Unlicense, and PSF licenses are allowed.
 

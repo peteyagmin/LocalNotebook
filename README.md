@@ -108,3 +108,8 @@ scripted model and needs no server.
   wizard or Settings.
 - Environment overrides: `LNB_DATA_ROOT`, `LNB_HOST_PORT`, `LNB_LLM_BASE_URL`.
 - Data folder: the OS user-data directory for "LocalNotebook" (override with `LNB_DATA_ROOT`).
+
+## License
+
+MIT. Copyright (c) 2026 Pete Yagmin. See [LICENSE](LICENSE). Third-party components and their
+licenses are listed in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
