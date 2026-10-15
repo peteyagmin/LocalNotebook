@@ -9,6 +9,9 @@ spoken "podcast-style" audio overview of your material.
 web page). There is no account, no tracking, and no cloud service. The "brain" that reads and writes
 is an AI model that you run yourself on your own machine.
 
+LocalNotebook is an independent, open-source project. It is not affiliated with or endorsed by Google.
+It is a local alternative to tools such as Google's NotebookLM.
+
 This guide assumes you have never done anything like this before. Take it one step at a time.
 
 ---
@@ -33,7 +36,8 @@ This guide assumes you have never done anything like this before. Take it one st
 16. [Keyboard shortcuts and accessibility](#16-keyboard-shortcuts-and-accessibility)
 17. [Privacy and safety](#17-privacy-and-safety)
 18. [Troubleshooting](#18-troubleshooting)
-19. [Glossary](#19-glossary)
+19. [Known limitations](#19-known-limitations)
+20. [Glossary](#20-glossary)
 
 ---
 
@@ -80,14 +84,14 @@ Windows, macOS and Linux are supported.
 | Program | What it is for | Required? |
 |-|-|-|
 | [uv](https://docs.astral.sh/uv/) | Installs and runs the app's Python parts for you | Yes |
-| [Node.js](https://nodejs.org) (version 20 or newer) | Builds the app's web page the first time | Yes |
-| [Git](https://git-scm.com/downloads) | Downloads the app (or you can download a ZIP instead) | Optional |
+| [Node.js](https://nodejs.org) (version 20 or newer) | Builds the app's web page the first time | Only if you download the source code instead of the ready-made release (see section 5) |
+| [Git](https://git-scm.com/downloads) | Downloads the source code | Only for the source-code route |
 | [Ollama](https://ollama.com/download) | Runs the AI models | Yes (or another compatible server) |
 | [Tesseract](https://tesseract-ocr.github.io/tessdoc/Installation.html) | Reads text from images and scanned PDFs | Only for images and scans |
 | [ffmpeg](https://ffmpeg.org/download.html) | Builds the audio file | Only for audio overviews |
 | [espeak-ng](https://github.com/espeak-ng/espeak-ng) | Helps the voices pronounce words | Only for audio overviews |
 
-You can start with just the first four and add the rest later. The app tells you, in plain language,
+You can start with just uv and Ollama (plus Node.js and Git if you use the source-code route) and add the rest later. The app tells you, in plain language,
 which features are switched off because something is missing.
 
 ### An internet connection (only for setup)
@@ -111,8 +115,8 @@ harmless to install again.
 
    ```powershell
    winget install --id astral-sh.uv -e
-   winget install --id OpenJS.NodeJS.LTS -e
-   winget install --id Git.Git -e
+   winget install --id OpenJS.NodeJS.LTS -e   # only for the source-code route
+   winget install --id Git.Git -e             # only for the source-code route
    winget install --id Ollama.Ollama -e
    winget install --id UB-Mannheim.TesseractOCR -e
    winget install --id Gyan.FFmpeg -e
@@ -147,8 +151,9 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 curl -fsSL https://ollama.com/install.sh | sh
 ```
 
-Check that Node.js is version 20 or newer with `node --version`. If it is older, install a newer one
-from [nodejs.org](https://nodejs.org). Then close the terminal and open it again.
+If you will use the source-code route, check that Node.js is version 20 or newer with
+`node --version`. If it is older, install a newer one from [nodejs.org](https://nodejs.org). Then close
+the terminal and open it again.
 
 ### Check that it worked
 
@@ -157,7 +162,7 @@ version number rather than an error such as "command not found":
 
 ```
 uv --version
-node --version
+node --version      # only needed for the source-code route
 ollama --version
 tesseract --version
 ffmpeg -version
@@ -202,15 +207,21 @@ espeak-ng --version
 
 ### Download
 
-Open PowerShell or Terminal and run:
+**Easiest: the ready-made release (no Node.js needed).**
+
+1. Open <https://github.com/peteyagmin/localnotebook/releases> and download the newest
+   `LocalNotebook-v….zip`.
+2. Unzip it. Open PowerShell or Terminal **inside the unzipped folder** (on Windows: open the folder in
+   File Explorer, click the address bar, type `powershell`, and press Enter).
+
+**Alternative: the source code (needs Git and Node.js).** Run:
 
 ```
 git clone https://github.com/peteyagmin/localnotebook.git
 cd localnotebook
 ```
 
-(No Git? Open <https://github.com/peteyagmin/localnotebook>, choose **Code → Download ZIP**, unzip
-it, and open PowerShell or Terminal inside the unzipped folder.)
+The first start then also builds the web page, which takes a few extra minutes.
 
 ### Start
 
@@ -219,7 +230,7 @@ it, and open PowerShell or Terminal inside the unzipped folder.)
 | Windows | `scripts\run.ps1` |
 | macOS / Linux | `scripts/run.sh` |
 
-**The first start takes a few minutes.** It downloads the app's parts and builds the web page. You
+**The first start takes a few minutes.** It downloads the app's parts (and, on the source-code route, builds the web page). You
 will see lots of text scroll by. This is normal. It only happens the first time.
 
 When it is ready, your web browser opens by itself on the app. In the window you started it from you
@@ -514,7 +525,7 @@ fails, note the message the app shows and report it.
 ### Make one
 
 1. In Studio, under **Audio overview**, choose:
-   - **Length:** Short (about 5 minutes), Default (about 10), or Long (about 20).
+   - **Length:** Short (~5 min), Default (~10 min), or Long (~20 min).
    - **Format:**
      - *Deep dive* – a friendly, thorough discussion
      - *Brief* – the essentials, quickly
@@ -649,6 +660,9 @@ computer, and a larger text size.
 - **Web safety:** addresses on your own network or computer are refused, so the app cannot be tricked
   into probing your network.
 - The `.lnb` files you export are **not encrypted**. Treat them like the original documents.
+- **Your data folder is not encrypted either**, and the optional model-server API key (if you use
+  one) is stored there as plain text. Protect the folder the way you protect your other personal
+  files (for example with your computer's disk encryption).
 
 ---
 
@@ -681,7 +695,25 @@ them when asking for help or reporting a problem at
 
 ---
 
-## 19. Glossary
+## 19. Known limitations
+
+Please be aware of these in version 1.0:
+
+- **Audio overviews are the least-tested feature.** The voice engine was written to the published
+  Kokoro format but has had limited testing on real model files. If it fails, the app shows an error
+  message and nothing else is affected.
+- **Answer quality depends on your model.** Small models on modest computers can miss details or
+  phrase things poorly. The citations let you check every claim.
+- **Windows and macOS** are supported, but most testing has been on Linux. Report anything odd.
+- **Speed** depends heavily on your hardware. Without a graphics card, chat and audio are slow.
+- **Videos and web pages** depend on outside sites. Sites can block automatic reading, and YouTube
+  changes often; if video import breaks, update to the newest release.
+- Notebooks and exports are **not encrypted**, and there is no sync between computers other than
+  exporting and importing a notebook.
+
+---
+
+## 20. Glossary
 
 | Word | Meaning |
 |-|-|

@@ -1,0 +1,37 @@
+name: Release
+
+# Push a tag such as v1.0.0 to build a download that already contains the built web page, so
+# end users do not need Node.js.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build the web page
+        run: npm ci && npm run build
+        working-directory: frontend
+      - name: Package
+        run: |
+          name="LocalNotebook-${GITHUB_REF_NAME}"
+          mkdir -p "dist-release/$name"
+          git archive HEAD | tar -x -C "dist-release/$name"
+          cp -r frontend/dist "dist-release/$name/frontend/dist"
+          (cd dist-release && zip -qr "../$name.zip" "$name")
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "LocalNotebook-${GITHUB_REF_NAME}.zip" \
+            --verify-tag --title "LocalNotebook ${GITHUB_REF_NAME}" --generate-notes

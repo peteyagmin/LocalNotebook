@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-`PROJECT_SPEC.md` is the single source of truth. Read its §0 before changing anything. Do not
+`docs/PROJECT_SPEC.md` is the single source of truth. Read its §0 before changing anything. Do not
 edit it except to tick milestone boxes in §12. Stop after each milestone for owner testing.
 
 ## Current status
@@ -204,6 +204,16 @@ M0-M7 accepted: v1.0 signed off by the owner.
   screens in both themes.
 - Tests: `uv run pytest` skips `e2e`; `uv run pytest -m e2e` needs `frontend/dist` built and Chromium
   (set `PLAYWRIGHT_BROWSERS_PATH`). `evals/perf_check.py` is the §9 check.
+
+## Release and repository files
+
+- `docs/PROJECT_SPEC.md` (moved from the root), `docs/USER_GUIDE.md` (end users), `CHANGELOG.md`,
+  `SECURITY.md`, `CONTRIBUTING.md`, `.github/` (CI on Linux/macOS/Windows, release workflow, issue and PR
+  templates). A pushed tag `v*` makes the release workflow build `frontend/dist` and attach a zip so end
+  users need no Node.js (`scripts/launcher.py` only builds when `frontend/dist` is missing).
+- Version: `version` in `pyproject.toml` is the source (`app/version.py` reads it for `/health`); keep
+  `frontend/package.json`, the lock files and `CHANGELOG.md` in step.
+- `scripts/screenshots.py` regenerates `docs/screenshots/*.png` from the real UI with a scripted model.
 
 ## Conventions
 

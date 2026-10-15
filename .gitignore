@@ -9,3 +9,10 @@ frontend/dist/
 *.db-wal
 *.db-shm
 *.db.bak-*
+.env
+.env.*
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.lnb

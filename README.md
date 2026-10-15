@@ -1,50 +1,98 @@
 # LocalNotebook
 
-Local, source-grounded research notebook. See `PROJECT_SPEC.md` for the full specification.
+**A private, local alternative to Google NotebookLM.** Add your documents, web pages and videos, ask
+questions and get answers with citations that open the exact passage, and generate summaries, study
+aids and two-host audio overviews. It all runs on your own computer with your own AI models (for
+example through [Ollama](https://ollama.com)). No account, no cloud, no tracking.
 
-**New to this? Read the [User Guide](docs/USER_GUIDE.md)** for step-by-step setup and use.
+[![CI](https://github.com/peteyagmin/localnotebook/actions/workflows/ci.yml/badge.svg)](https://github.com/peteyagmin/localnotebook/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Status:** v1.0 (M0-M7 complete). Everything from M0 to M6
-(notebooks, sources of every type, cited chat, notes, generated documents, structured study aids,
-audio overviews) plus:
+![LocalNotebook: sources on the left, cited chat in the middle, generated documents on the right](docs/screenshots/notebook.png)
 
-- **Export and import** (`Export` on a notebook card, `Import notebook` on the home screen). A
-  notebook is one `.lnb` file (a ZIP of its folder and a manifest). Importing never overwrites: if the
-  notebook is already there, it is added as a copy.
-- **Rebuild index.** After you change the embedding model, notebooks show an offer to rebuild their
-  search index, which re-reads every source and note with the new model.
-- **Appearance** (Settings): light, dark, or the same as the computer; text size.
-- **Keyboard:** `Enter` sends, `Shift+Enter` adds a line, `Esc` closes the newest open menu, dialog,
-  or panel, `Ctrl/Cmd+K` focuses search.
-- An accessibility pass (checked automatically with axe-core in light and dark themes).
+*Independent project, not affiliated with or endorsed by Google. NotebookLM is a trademark of Google LLC.*
+
+## What you can do
+
+- **Chat with your sources.** Answers use only your sources, every claim has a numbered citation, and
+  questions your sources cannot answer are declined instead of guessed.
+- **Add almost anything:** PDF, Word, text, Markdown, HTML, EPUB, images and scanned pages (OCR), audio
+  files (transcribed locally), web pages (saved, so they work offline), YouTube videos, or let
+  **Discover** suggest sources on a topic.
+- **Generate:** summaries, briefings, study guides, FAQs, timelines, mind maps, flashcards and quizzes,
+  with exports to Markdown, Word, PDF, PNG, JSON and CSV.
+- **Audio overviews:** a spoken discussion between two hosts (deep dive, brief, debate or critique)
+  with a transcript that follows along, an editable script and re-synthesis.
+- **Take notes, search everything** (`Ctrl/Cmd+K`), and **export or import** whole notebooks as one
+  `.lnb` file.
+- **Your data stays yours.** Everything lives in one folder on your computer. The app only uses the
+  internet for actions you start (adding a web page, Discover, downloading a speech model), and each
+  can be switched off.
+- Light and dark themes, adjustable text size, full keyboard use, and an accessibility check in CI.
+
+| | |
+|-|-|
+| ![Opening a citation](docs/screenshots/citation.png) | ![Mind map](docs/screenshots/mind-map.png) |
+| *Click a citation to see the exact passage.* | *Generate and explore a mind map.* |
+
+## Quick start
+
+1. Install [uv](https://docs.astral.sh/uv/) and [Ollama](https://ollama.com/download), then download
+   a chat model and an embedding model, for example `ollama pull llama3.1` and
+   `ollama pull nomic-embed-text` (examples only; choose models that fit your computer).
+2. Download the newest `LocalNotebook-v….zip` from the
+   [Releases page](https://github.com/peteyagmin/localnotebook/releases) and unzip it.
+3. In that folder, run `scripts/run.sh` (macOS / Linux) or `scripts\run.ps1` (Windows PowerShell).
+   Your browser opens on the app; follow the setup checklist.
+
+**New to this? Read the step-by-step [User Guide](docs/USER_GUIDE.md).**
+
+## Requirements
+
+- [uv](https://docs.astral.sh/uv/) (manages Python 3.11+)
+- [Ollama](https://ollama.com) (or another OpenAI-compatible local server)
+- Optional, checked by the setup checklist: Tesseract (images and scans), ffmpeg and espeak-ng
+  (audio overviews)
+- [Node.js](https://nodejs.org) 20+ and npm, only when running from the source code instead of a
+  release zip
+- Recommended hardware: 32 GB RAM and a GPU with 12 GB+ VRAM (or Apple Silicon with 32 GB). The
+  minimum is 16 GB RAM and an 8-core CPU, where everything works but chat and audio are slow.
+
+## Run from source
+
+```
+git clone https://github.com/peteyagmin/localnotebook.git
+cd localnotebook
+scripts/run.sh        # Windows: scripts\run.ps1
+```
+
+This builds the frontend on first run, starts the server on a free `127.0.0.1` port, and opens your
+browser with a per-launch token. On first launch the setup wizard checks the model server, your chat
+and embedding models, Tesseract, ffmpeg and espeak-ng.
 
 Ingesting a source calls your model server twice (embeddings, then a short source guide), so a chat
 model and an embedding model must be set in Settings first. Without them a source shows as failed
 with a **Retry** button.
 
-## Requirements
+## Documentation
 
-- [uv](https://docs.astral.sh/uv/) (manages Python 3.11+)
-- Node.js 20+ and npm
-- [Ollama](https://ollama.com) (or another OpenAI-compatible local server)
-- Tesseract, ffmpeg and espeak-ng on `PATH` (checked by the setup wizard; espeak-ng is only needed for audio overviews)
+- [User Guide](docs/USER_GUIDE.md): installation, every feature, settings, troubleshooting
+- [Specification](docs/PROJECT_SPEC.md): requirements and design decisions
+- [Changelog](CHANGELOG.md), [Contributing](CONTRIBUTING.md), [Security](SECURITY.md)
 
-## Run
+## Known limitations (1.0)
 
-| OS | Command |
-|-|-|
-| Linux / macOS | `scripts/run.sh` |
-| Windows (PowerShell) | `scripts/run.ps1` |
-
-This builds the frontend on first run, starts the server on a free `127.0.0.1` port, and opens your
-browser with a per-launch token. On first launch the setup wizard checks the model server, your
-chat and embedding models, Tesseract, and ffmpeg.
+- Audio overviews use a Kokoro ONNX voice engine that has had limited testing on real model files.
+- Most testing has been on Linux; CI runs the tests on Linux, macOS and Windows.
+- The grounding evaluation (`evals/run_eval.py`) is provided but has not been published for any
+  particular model; run it against yours.
+- Notebooks and exports are not encrypted.
 
 ## Develop
 
 `scripts/dev.sh` / `scripts/dev.ps1`: backend with reload plus the Vite dev server.
 
-## Test and lint
+### Test and lint
 
 ```
 uv run pytest
@@ -60,11 +108,17 @@ cd frontend && npm install && npm run build   # once, and after UI changes
 uv run pytest -m e2e
 ```
 
-Performance check against spec §9 (measures the app's own cost with a fake model; the real-model
-parts are for you to measure on your hardware):
+Performance check against spec section 9 (measures the app's own cost with a fake model; the
+real-model parts are for you to measure on your hardware):
 
 ```
 uv run python evals/perf_check.py
+```
+
+Regenerate the screenshots in `docs/screenshots` (needs the built frontend):
+
+```
+uv run python scripts/screenshots.py
 ```
 
 ## Web, video, audio, and OCR

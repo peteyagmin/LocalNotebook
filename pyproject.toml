@@ -1,6 +1,6 @@
 [project]
 name = "localnotebook"
-version = "0.0.1"
+version = "1.0.0"
 description = "Local, source-grounded research notebook."
 requires-python = ">=3.11"
 license = "MIT"

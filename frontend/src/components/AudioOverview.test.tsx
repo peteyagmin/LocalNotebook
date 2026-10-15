@@ -211,7 +211,7 @@ it('creates an audio overview with the chosen length and format and the focus', 
     within(length)
       .getAllByRole('option')
       .map((o) => o.textContent),
-  ).toEqual(['Short (about 5 minutes)', 'Default (about 10 minutes)', 'Long (about 20 minutes)'])
+  ).toEqual(['Short (~5 min)', 'Default (~10 min)', 'Long (~20 min)'])
   await userEvent.selectOptions(length, 'long')
   await userEvent.selectOptions(within(section).getByRole('combobox', { name: 'Format' }), 'debate')
   await userEvent.type(screen.getByLabelText('Focus (optional)'), 'migration')

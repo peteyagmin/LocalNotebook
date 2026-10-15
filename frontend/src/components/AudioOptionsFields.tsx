@@ -1,9 +1,9 @@
 import type { AudioFormat, AudioLength, AudioOptions } from '../api'
 
 const LENGTHS: { value: AudioLength; label: string }[] = [
-  { value: 'short', label: 'Short (about 5 minutes)' },
-  { value: 'default', label: 'Default (about 10 minutes)' },
-  { value: 'long', label: 'Long (about 20 minutes)' },
+  { value: 'short', label: 'Short (~5 min)' },
+  { value: 'default', label: 'Default (~10 min)' },
+  { value: 'long', label: 'Long (~20 min)' },
 ]
 const FORMATS: { value: AudioFormat; label: string }[] = [
   { value: 'deep_dive', label: 'Deep dive' },
