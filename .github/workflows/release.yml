@@ -6,6 +6,13 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # Run by hand (Actions tab, then Release, then Run workflow) to build and attach the zip for an
+  # existing tag, for example one whose first run failed.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and attach the zip to (for example v1.0.0)"
+        required: true
 
 permissions:
   contents: write
@@ -15,6 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -24,8 +33,10 @@ jobs:
         run: npm ci && npm run build
         working-directory: frontend
       - name: Package
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          name="LocalNotebook-${GITHUB_REF_NAME}"
+          name="LocalNotebook-${TAG}"
           mkdir -p "dist-release/$name"
           git archive HEAD | tar -x -C "dist-release/$name"
           cp -r frontend/dist "dist-release/$name/frontend/dist"
@@ -33,7 +44,9 @@ jobs:
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
+          GITHUB_REF_NAME="$TAG"
           zip="LocalNotebook-${GITHUB_REF_NAME}.zip"
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             # The release was created in the web page (which also created this tag): add the zip.
